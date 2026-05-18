@@ -1,0 +1,7 @@
+{
+  "appId": "constitute-security",
+  "name": "Constitute Security",
+  "entry": "dist/index.html",
+  "version": "0.1.0"
+}
+

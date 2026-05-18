@@ -1,0 +1,151 @@
+const EMPTY_PRODUCT_POSTURE = Object.freeze({
+  kind: "security.product.posture",
+  state: "emptyProductPosture",
+  reason: "security processor runway is seeded; threat workflows are not built",
+});
+
+export function prepareSecurityReadModel({
+  fixture,
+  selectionReadModel,
+  securityRunReport,
+  runnerFulfillmentReport,
+} = {}) {
+  const seed = fixture?.seed || {};
+  const appContract = fixture?.appContract || {};
+  const materialization = securityRunReport?.materializationPosture || {};
+  const alert = securityRunReport?.alertPosture || {};
+  const evidence = securityRunReport?.evidenceHoldPosture || {};
+  const access = securityRunReport?.accessPosture || {};
+
+  return deepFreeze({
+    kind: "security.surface.readModel",
+    state: selectionReadModel?.state || "unknown",
+    app: {
+      appId: appContract.appId || "",
+      appRef: appContract.appRef || "",
+      version: appContract.version || "",
+      contractId: appContract.contractId || "",
+      sourceMode: selectionReadModel?.sourceMode || "",
+      moduleRefs: selectionReadModel?.moduleRefs || [],
+      materializationBudgetRefs: selectionReadModel?.materializationBudgetRefs || [],
+    },
+    processor: {
+      seedId: seed.seedId || "",
+      processorRef: seed.processorRef || "",
+      processorRoleRef: seed.processorRoleRef || "",
+      fabricRef: seed.fabricRef || "",
+      state: seed.state || "",
+      inputEventClasses: seed.inputEventClasses || [],
+      inputContentClasses: seed.inputContentClasses || [],
+      inputAccessClassRefs: seed.inputAccessClassRefs || [],
+    },
+    access: {
+      state: access.state || "unknown",
+      accessGroupRefs: access.accessGroupRefs || seed.accessGroupRefs || [],
+      detailRefs: access.detailRefs || seed.detailRefs || [],
+      custodyState: access.custodyState || seed.encryptedDetailCustody?.state || "",
+    },
+    alert: {
+      state: alert.state || "unknown",
+      alertOutputRefs: alert.alertOutputRefs || seed.alertOutputRefs || [],
+      alertEventRefs: alert.alertEventRefs || [],
+      severityCounts: alert.severityCounts || {},
+    },
+    evidence: {
+      state: evidence.state || "unknown",
+      evidenceHoldRefs: evidence.evidenceHoldRefs || seed.evidenceHoldRefs || [],
+      retentionHoldRefs: evidence.retentionHoldRefs || seed.retentionHoldRefs || [],
+      heldEventRefs: evidence.heldEventRefs || [],
+    },
+    materialization: {
+      state: materialization.state || "unknown",
+      materializationBudgetRefs: materialization.materializationBudgetRefs || seed.materializationBudgetRefs || [],
+      storageRefs: securityRunReport?.storageRefs || seed.storageRefs || [],
+    },
+    runner: {
+      state: runnerFulfillmentReport?.state || "unknown",
+      runnerId: runnerFulfillmentReport?.runnerId || "",
+      hostRef: runnerFulfillmentReport?.hostRef || "",
+      operation: runnerFulfillmentReport?.operation || "",
+      sourceMode: runnerFulfillmentReport?.sourceMode || "",
+      outputRefs: runnerFulfillmentReport?.outputRefs || [],
+      proofRefs: runnerFulfillmentReport?.proofRefs || [],
+      releaseRefs: runnerFulfillmentReport?.releaseRefs || [],
+      resourcePosture: runnerFulfillmentReport?.resourcePosture || null,
+    },
+    emptyProductPosture: EMPTY_PRODUCT_POSTURE,
+    blockedReasons: selectionReadModel?.blockedReasons || [],
+  });
+}
+
+export function securitySummaryRows(model) {
+  return [
+    ["App", `${model.app.appId}@${model.app.version}`],
+    ["Selection", model.state],
+    ["Processor", `${model.processor.processorRef} (${model.processor.state})`],
+    ["Fabric", model.processor.fabricRef],
+    ["Access", model.access.state],
+    ["Alerts", model.alert.state],
+    ["Evidence hold", model.evidence.state],
+    ["Materialization", model.materialization.state],
+    ["Runner", model.runner.state],
+    ["Product", model.emptyProductPosture.state],
+  ];
+}
+
+export function postureRows(model, key) {
+  const value = model?.[key] || {};
+  if (key === "processor") {
+    return [
+      ["Seed", value.seedId],
+      ["Role", value.processorRoleRef],
+      ["Events", value.inputEventClasses.join(", ")],
+      ["Content", value.inputContentClasses.join(", ")],
+      ["Access classes", value.inputAccessClassRefs.join(", ")],
+    ];
+  }
+  if (key === "access") {
+    return [
+      ["State", value.state],
+      ["Groups", value.accessGroupRefs.join(", ")],
+      ["Details", value.detailRefs.join(", ")],
+      ["Custody", value.custodyState],
+    ];
+  }
+  if (key === "alert") {
+    return [
+      ["State", value.state],
+      ["Outputs", value.alertOutputRefs.join(", ")],
+      ["Events", value.alertEventRefs.length],
+      ["Severity", severityText(value.severityCounts)],
+    ];
+  }
+  if (key === "evidence") {
+    return [
+      ["State", value.state],
+      ["Holds", value.evidenceHoldRefs.join(", ")],
+      ["Retention", value.retentionHoldRefs.join(", ")],
+      ["Held events", value.heldEventRefs.length],
+    ];
+  }
+  if (key === "materialization") {
+    return [
+      ["State", value.state],
+      ["Budgets", value.materializationBudgetRefs.join(", ")],
+      ["Storage", value.storageRefs.join(", ")],
+    ];
+  }
+  return [];
+}
+
+function severityText(counts = {}) {
+  const entries = Object.entries(counts).filter(([, count]) => Number(count) > 0);
+  return entries.length ? entries.map(([key, count]) => `${key}:${count}`).join(" ") : "none";
+}
+
+function deepFreeze(value) {
+  if (!value || typeof value !== "object" || Object.isFrozen(value)) return value;
+  for (const key of Object.keys(value)) deepFreeze(value[key]);
+  return Object.freeze(value);
+}
+

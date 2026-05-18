@@ -1,0 +1,68 @@
+.securityMain {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 100%;
+}
+
+.securityView {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.securityGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.securityPanel {
+  margin-top: 16px;
+}
+
+.securityHero .cuPanelBody {
+  padding-top: 4px;
+}
+
+.securityRows {
+  display: grid;
+  gap: 8px;
+}
+
+.securityRow {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.35fr) minmax(0, 1fr);
+  gap: 12px;
+  align-items: baseline;
+  min-height: 32px;
+  padding: 8px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--cuBorder, #d7dce2), transparent 35%);
+}
+
+.securityRow:last-child {
+  border-bottom: 0;
+}
+
+.securityRowKey {
+  color: var(--cuTextSubtle, #64748b);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+}
+
+.securityRowValue {
+  color: var(--cuText, #111827);
+  font-size: 0.94rem;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 760px) {
+  .securityGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .securityRow {
+    grid-template-columns: 1fr;
+  }
+}
+
