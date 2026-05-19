@@ -5,10 +5,12 @@ import {
 } from "constitute-protocol";
 import {
   buildAppRunnerFulfillment,
+} from "constitute-runner";
+import {
   buildCybersecProcessorRun,
   cybersecAppContractFixture,
   cybersecBootstrapFixture,
-} from "constitute-runner";
+} from "./cybersec-runner-contract.js";
 import { defineSurfaceAppContract } from "constitute-ui/surface-app-contract";
 import { surfaceAppSelectionReadModel } from "constitute-ui/surface-selection-read-model";
 import { createSurfaceModuleRegistry } from "constitute-ui/surface-module-registry";
