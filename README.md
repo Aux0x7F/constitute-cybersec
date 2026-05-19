@@ -1,8 +1,8 @@
-# Constitute Security
+# Constitute Cybersecurity
 
-Contract-backed Security surface seed for event-fabric threat posture.
+Contract-backed Cybersec surface seed for event-fabric threat posture.
 
-The app renders the minimal Security app contract, access posture, alert posture, evidence-hold posture, storage refs, and runner fulfillment posture. It does not perform broad threat analysis yet.
+The app renders the minimal Cybersec app contract, access posture, alert posture, evidence-hold posture, storage refs, and runner fulfillment posture. It does not perform broad threat analysis yet.
 
 ## Commands
 

@@ -5,31 +5,31 @@ import {
 } from "constitute-protocol";
 import {
   buildAppRunnerFulfillment,
-  buildSecurityProcessorRun,
-  securityAppContractFixture,
-  securityBootstrapFixture,
+  buildCybersecProcessorRun,
+  cybersecAppContractFixture,
+  cybersecBootstrapFixture,
 } from "constitute-runner";
 import { defineSurfaceAppContract } from "constitute-ui/surface-app-contract";
 import { surfaceAppSelectionReadModel } from "constitute-ui/surface-selection-read-model";
 import { createSurfaceModuleRegistry } from "constitute-ui/surface-module-registry";
 import { createRuntimeSurfaceClient } from "constitute-ui/runtime-surface-client";
-import { prepareSecurityReadModel } from "./security-read-model.js";
+import { prepareCybersecReadModel } from "./cybersec-read-model.js";
 
 const ISSUED_AT = Math.floor(Date.now() / 1_000);
 
-export const securityFixture = securityAppContractFixture(ISSUED_AT);
-export const securityBootstrap = securityBootstrapFixture(ISSUED_AT);
+export const cybersecFixture = cybersecAppContractFixture(ISSUED_AT);
+export const cybersecBootstrap = cybersecBootstrapFixture(ISSUED_AT);
 
-export const securitySurfaceAppContract = assertSurfaceAppContract(securityFixture.appContract);
-export const securitySurfaceApp = defineSurfaceAppContract(securitySurfaceAppContract, {
+export const cybersecSurfaceAppContract = assertSurfaceAppContract(cybersecFixture.appContract);
+export const cybersecSurfaceApp = defineSurfaceAppContract(cybersecSurfaceAppContract, {
   validate: assertSurfaceAppContract,
 });
-export const securitySurfaceAppManifest = assertSurfaceAppManifest(securityFixture.manifest);
+export const cybersecSurfaceAppManifest = assertSurfaceAppManifest(cybersecFixture.manifest);
 
-export const securityProcessorRunReport = buildSecurityProcessorRun(securityBootstrap);
-export const securityRunnerFulfillmentReport = buildAppRunnerFulfillment(securityFixture);
+export const cybersecProcessorRunReport = buildCybersecProcessorRun(cybersecBootstrap);
+export const cybersecRunnerFulfillmentReport = buildAppRunnerFulfillment(cybersecFixture);
 
-export const securitySurfaceModuleRegistry = createSurfaceModuleRegistry([
+export const cybersecSurfaceModuleRegistry = createSurfaceModuleRegistry([
   {
     moduleRef: "constitute-ui/runtime-surface-client@0.1.0",
     role: SURFACE_APP.MODULE_ROLE.RUNTIME_CLIENT,
@@ -38,31 +38,31 @@ export const securitySurfaceModuleRegistry = createSurfaceModuleRegistry([
     implementation: Object.freeze({ createRuntimeSurfaceClient }),
   },
   {
-    moduleRef: "constitute-security/event-projection-model@0.1.0",
+    moduleRef: "constitute-cybersec/event-projection-model@0.1.0",
     role: SURFACE_APP.MODULE_ROLE.PROJECTION_MODEL,
     version: "0.1.0",
     primitiveRefs: ["event.fabric.processor.contract", "materialization.budget"],
-    implementation: Object.freeze({ prepareSecurityReadModel }),
+    implementation: Object.freeze({ prepareCybersecReadModel }),
   },
   {
-    moduleRef: "constitute-security/product-view@0.1.0",
+    moduleRef: "constitute-cybersec/product-view@0.1.0",
     role: SURFACE_APP.MODULE_ROLE.PRODUCT_VIEW,
     version: "0.1.0",
     primitiveRefs: ["runtime.posture.render"],
-    implementation: Object.freeze({ surfaceRef: "constitute-security" }),
+    implementation: Object.freeze({ surfaceRef: "constitute-cybersec" }),
   },
 ]);
 
-export const securitySurfaceSelectionReadModel = surfaceAppSelectionReadModel({
-  surfaceApp: securitySurfaceApp,
-  manifest: securitySurfaceAppManifest,
-  moduleRegistry: securitySurfaceModuleRegistry,
+export const cybersecSurfaceSelectionReadModel = surfaceAppSelectionReadModel({
+  surfaceApp: cybersecSurfaceApp,
+  manifest: cybersecSurfaceAppManifest,
+  moduleRegistry: cybersecSurfaceModuleRegistry,
   moduleRoles: {
     runtimeClient: SURFACE_APP.MODULE_ROLE.RUNTIME_CLIENT,
     projectionModel: SURFACE_APP.MODULE_ROLE.PROJECTION_MODEL,
     productView: SURFACE_APP.MODULE_ROLE.PRODUCT_VIEW,
   },
-  productSurface: "constitute-security",
+  productSurface: "constitute-cybersec",
   runtimeVersion: "0.1.0",
   issuedAt: ISSUED_AT,
   authorityAccessOptions: {
@@ -73,28 +73,28 @@ export const securitySurfaceSelectionReadModel = surfaceAppSelectionReadModel({
       now: ISSUED_AT,
     },
   },
-  runnerFulfillmentReport: securityRunnerFulfillmentReport,
+  runnerFulfillmentReport: cybersecRunnerFulfillmentReport,
   serviceManagerOperationOptions: {
     operation: SURFACE_APP.SERVICE_MANAGER_OPERATION.HEALTH_CHECK,
-    operationId: "operation:security:bootstrap-health",
+    operationId: "operation:cybersec:bootstrap-health",
     requestedAt: ISSUED_AT,
   },
   serviceManagerProofDigestOptions: {
-    digestId: "proof-digest:security:bootstrap",
+    digestId: "proof-digest:cybersec:bootstrap",
     observedAt: ISSUED_AT,
   },
 });
 
-export const securityProductReadModel = prepareSecurityReadModel({
-  fixture: securityFixture,
-  selectionReadModel: securitySurfaceSelectionReadModel,
-  securityRunReport: securityProcessorRunReport,
-  runnerFulfillmentReport: securityRunnerFulfillmentReport,
+export const cybersecProductReadModel = prepareCybersecReadModel({
+  fixture: cybersecFixture,
+  selectionReadModel: cybersecSurfaceSelectionReadModel,
+  cybersecRunReport: cybersecProcessorRunReport,
+  runnerFulfillmentReport: cybersecRunnerFulfillmentReport,
 });
 
-export const securityRuntimeClientModule = securitySurfaceModuleRegistry.require(
-  securitySurfaceApp,
+export const cybersecRuntimeClientModule = cybersecSurfaceModuleRegistry.require(
+  cybersecSurfaceApp,
   SURFACE_APP.MODULE_ROLE.RUNTIME_CLIENT,
 ).implementation;
 
-export const securitySurfaceAttachContext = securitySurfaceSelectionReadModel.attachContext;
+export const cybersecSurfaceAttachContext = cybersecSurfaceSelectionReadModel.attachContext;

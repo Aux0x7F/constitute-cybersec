@@ -1,6 +1,6 @@
 {
-  "appId": "constitute-security",
-  "name": "Constitute Security",
+  "appId": "constitute-cybersec",
+  "name": "Constitute Cybersecurity",
   "entry": "dist/index.html",
   "version": "0.1.0"
 }

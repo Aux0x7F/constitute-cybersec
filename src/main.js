@@ -16,69 +16,69 @@ import {
 } from "../../constitute-account/runtime-contract.js";
 import { RUNTIME_DIAGNOSTIC_OPERATOR_PLANES, attachRuntimeDiagnostics } from "../../constitute-account/runtime-diagnostics.js";
 import {
-  securityProductReadModel,
-  securityRuntimeClientModule,
-  securitySurfaceAttachContext,
-  securitySurfaceSelectionReadModel,
+  cybersecProductReadModel,
+  cybersecRuntimeClientModule,
+  cybersecSurfaceAttachContext,
+  cybersecSurfaceSelectionReadModel,
 } from "./surface-app-contract.js";
 import {
   postureRows,
-  securitySummaryRows,
-} from "./security-read-model.js";
+  cybersecSummaryRows,
+} from "./cybersec-read-model.js";
 
 const RUNTIME_ATTACH_TIMEOUT_MS = 5_000;
 const RUNTIME_WRITE_TIMEOUT_MS = 10_000;
 
-const SECURITY_MAIN_HTML = `
-  <div class="securityMain">
-    <section id="securityViewOverview" class="securityView">
-      <section class="cuPanel securityHero">
+const CYBERSEC_MAIN_HTML = `
+  <div class="cybersecMain">
+    <section id="cybersecViewOverview" class="cybersecView">
+      <section class="cuPanel cybersecHero">
         <div class="cuPanelHeader">
           <div>
-            <h2 class="cuPanelTitle">Security Processor</h2>
+            <h2 class="cuPanelTitle">Cybersecurity Processor</h2>
             <p class="cuPanelHint">Contract seed, event fabric, and empty product posture.</p>
           </div>
         </div>
-        <div id="securitySummary" class="securityRows"></div>
+        <div id="cybersecSummary" class="cybersecRows"></div>
       </section>
     </section>
-    <section id="securityViewContracts" class="securityView hidden">
-      <div class="securityGrid">
+    <section id="cybersecViewContracts" class="cybersecView hidden">
+      <div class="cybersecGrid">
         <section class="cuPanel">
           <div class="cuPanelHeader"><div><h2 class="cuPanelTitle">Processor</h2></div></div>
-          <div id="processorRows" class="securityRows"></div>
+          <div id="processorRows" class="cybersecRows"></div>
         </section>
         <section class="cuPanel">
           <div class="cuPanelHeader"><div><h2 class="cuPanelTitle">Access</h2></div></div>
-          <div id="accessRows" class="securityRows"></div>
+          <div id="accessRows" class="cybersecRows"></div>
         </section>
       </div>
     </section>
-    <section id="securityViewMaterialization" class="securityView hidden">
-      <div class="securityGrid">
+    <section id="cybersecViewMaterialization" class="cybersecView hidden">
+      <div class="cybersecGrid">
         <section class="cuPanel">
           <div class="cuPanelHeader"><div><h2 class="cuPanelTitle">Alerts</h2></div></div>
-          <div id="alertRows" class="securityRows"></div>
+          <div id="alertRows" class="cybersecRows"></div>
         </section>
         <section class="cuPanel">
           <div class="cuPanelHeader"><div><h2 class="cuPanelTitle">Evidence Hold</h2></div></div>
-          <div id="evidenceRows" class="securityRows"></div>
+          <div id="evidenceRows" class="cybersecRows"></div>
         </section>
       </div>
-      <section class="cuPanel securityPanel">
+      <section class="cuPanel cybersecPanel">
         <div class="cuPanelHeader"><div><h2 class="cuPanelTitle">Materialization</h2></div></div>
-        <div id="materializationRows" class="securityRows"></div>
+        <div id="materializationRows" class="cybersecRows"></div>
       </section>
     </section>
-    <section id="securityViewRuntime" class="securityView hidden">
-      <div class="securityGrid">
+    <section id="cybersecViewRuntime" class="cybersecView hidden">
+      <div class="cybersecGrid">
         <section class="cuPanel">
           <div class="cuPanelHeader"><div><h2 class="cuPanelTitle">Runtime</h2></div></div>
-          <div id="runtimeRows" class="securityRows"></div>
+          <div id="runtimeRows" class="cybersecRows"></div>
         </section>
         <section class="cuPanel">
           <div class="cuPanelHeader"><div><h2 class="cuPanelTitle">Instance</h2></div></div>
-          <div id="instanceRows" class="securityRows"></div>
+          <div id="instanceRows" class="cybersecRows"></div>
         </section>
       </div>
     </section>
@@ -89,22 +89,22 @@ const app = document.querySelector("#app");
 if (!app) throw new Error("#app not found");
 
 const shell = renderFirstPartyShell(app, {
-  appName: "Security",
+  appName: "Cybersecurity",
   navItems: [
     { id: "overview", label: "Overview", active: true },
     { id: "contracts", label: "Contracts" },
     { id: "materialization", label: "Materialization" },
     { id: "runtime", label: "Runtime" },
   ],
-  mainHtml: SECURITY_MAIN_HTML,
+  mainHtml: CYBERSEC_MAIN_HTML,
   accountCenterTitle: "",
 });
 
 const views = {
-  overview: document.getElementById("securityViewOverview"),
-  contracts: document.getElementById("securityViewContracts"),
-  materialization: document.getElementById("securityViewMaterialization"),
-  runtime: document.getElementById("securityViewRuntime"),
+  overview: document.getElementById("cybersecViewOverview"),
+  contracts: document.getElementById("cybersecViewContracts"),
+  materialization: document.getElementById("cybersecViewMaterialization"),
+  runtime: document.getElementById("cybersecViewRuntime"),
 };
 
 let runtimeClient = null;
@@ -164,12 +164,12 @@ function rowList(containerId, rows) {
   container.replaceChildren();
   for (const [label, value] of rows) {
     const item = document.createElement("div");
-    item.className = "securityRow";
+    item.className = "cybersecRow";
     const key = document.createElement("span");
-    key.className = "securityRowKey";
+    key.className = "cybersecRowKey";
     key.textContent = String(label || "");
     const val = document.createElement("span");
-    val.className = "securityRowValue";
+    val.className = "cybersecRowValue";
     val.textContent = value === undefined || value === null || value === "" ? "none" : String(value);
     item.append(key, val);
     container.appendChild(item);
@@ -177,19 +177,19 @@ function rowList(containerId, rows) {
 }
 
 function renderStaticPosture() {
-  rowList("securitySummary", securitySummaryRows(securityProductReadModel));
-  rowList("processorRows", postureRows(securityProductReadModel, "processor"));
-  rowList("accessRows", postureRows(securityProductReadModel, "access"));
-  rowList("alertRows", postureRows(securityProductReadModel, "alert"));
-  rowList("evidenceRows", postureRows(securityProductReadModel, "evidence"));
-  rowList("materializationRows", postureRows(securityProductReadModel, "materialization"));
+  rowList("cybersecSummary", cybersecSummaryRows(cybersecProductReadModel));
+  rowList("processorRows", postureRows(cybersecProductReadModel, "processor"));
+  rowList("accessRows", postureRows(cybersecProductReadModel, "access"));
+  rowList("alertRows", postureRows(cybersecProductReadModel, "alert"));
+  rowList("evidenceRows", postureRows(cybersecProductReadModel, "evidence"));
+  rowList("materializationRows", postureRows(cybersecProductReadModel, "materialization"));
   rowList("instanceRows", [
-    ["Contract", securitySurfaceSelectionReadModel.contractId],
-    ["Manifest", securitySurfaceSelectionReadModel.manifestId],
-    ["Source", securitySurfaceSelectionReadModel.sourceMode],
-    ["Modules", securitySurfaceSelectionReadModel.moduleRefs.length],
-    ["Runner", securitySurfaceSelectionReadModel.runnerFulfillmentReadiness?.state || "unknown"],
-    ["Blocked", securitySurfaceSelectionReadModel.blockedReasons.join(", ") || "none"],
+    ["Contract", cybersecSurfaceSelectionReadModel.contractId],
+    ["Manifest", cybersecSurfaceSelectionReadModel.manifestId],
+    ["Source", cybersecSurfaceSelectionReadModel.sourceMode],
+    ["Modules", cybersecSurfaceSelectionReadModel.moduleRefs.length],
+    ["Runner", cybersecSurfaceSelectionReadModel.runnerFulfillmentReadiness?.state || "unknown"],
+    ["Blocked", cybersecSurfaceSelectionReadModel.blockedReasons.join(", ") || "none"],
   ]);
 }
 
@@ -207,7 +207,7 @@ function renderRuntime(snapshot = runtimeSnapshot) {
     toneClass: shellState.connectionToneClass,
   });
   if (shell.identityHandleEl) shell.identityHandleEl.textContent = shellState.identityHandle;
-  if (shell.panePathEl) shell.panePathEl.textContent = `Security / ${currentView}`;
+  if (shell.panePathEl) shell.panePathEl.textContent = `Cybersecurity / ${currentView}`;
   rowList("runtimeRows", [
     ["Connection", shellState.connectionLabel],
     ["Runtime", RUNTIME_WORKER_BUILD_ID],
@@ -215,17 +215,17 @@ function renderRuntime(snapshot = runtimeSnapshot) {
     ["Snapshot", snapshot ? "received" : "pending"],
     ["Diagnostics", runtimeDiagnosticsAgent ? "subscribed" : "pending"],
   ]);
-  window.__constituteSecurity = {
-    selectionReadModel: securitySurfaceSelectionReadModel,
-    productReadModel: securityProductReadModel,
+  window.__constituteCybersec = {
+    selectionReadModel: cybersecSurfaceSelectionReadModel,
+    productReadModel: cybersecProductReadModel,
     runtimeSnapshot: snapshot || null,
     activeWork: {
-      surface: "constitute-security",
-      posture: securityProductReadModel.emptyProductPosture.state,
-      appId: securityProductReadModel.app.appId,
-      accessState: securityProductReadModel.access.state,
-      alertState: securityProductReadModel.alert.state,
-      evidenceState: securityProductReadModel.evidence.state,
+      surface: "constitute-cybersec",
+      posture: cybersecProductReadModel.emptyProductPosture.state,
+      appId: cybersecProductReadModel.app.appId,
+      accessState: cybersecProductReadModel.access.state,
+      alertState: cybersecProductReadModel.alert.state,
+      evidenceState: cybersecProductReadModel.evidence.state,
     },
   };
 }
@@ -243,13 +243,13 @@ function selectView(id) {
 
 async function attachRuntime() {
   try {
-    const createRuntimeSurfaceClient = securityRuntimeClientModule.createRuntimeSurfaceClient;
+    const createRuntimeSurfaceClient = cybersecRuntimeClientModule.createRuntimeSurfaceClient;
     runtimeClient = createRuntimeSurfaceClient({
       workerUrl: runtimeWorkerUrl(),
       sharedWorkerName: runtimeSharedWorkerName(),
-      clientId: "security-ui",
-      surface: "constitute-security",
-      attachContext: securitySurfaceAttachContext,
+      clientId: "cybersec-ui",
+      surface: "constitute-cybersec",
+      attachContext: cybersecSurfaceAttachContext,
       attachTimeoutMs: RUNTIME_ATTACH_TIMEOUT_MS,
       writeTimeoutMs: RUNTIME_WRITE_TIMEOUT_MS,
       debugInfo: runtimeAttachDebugInfo(),
@@ -261,8 +261,8 @@ async function attachRuntime() {
     return await attachRuntime();
   }
   runtimeDiagnosticsAgent = attachRuntimeDiagnostics(runtimeClient, {
-    clientId: "security-ui",
-    surface: "constitute-security",
+    clientId: "cybersec-ui",
+    surface: "constitute-cybersec",
     planes: RUNTIME_DIAGNOSTIC_OPERATOR_PLANES,
   });
   runtimeClient.subscribeSnapshot?.((snapshot) => {
@@ -279,7 +279,6 @@ for (const button of shell.navButtons || []) {
 renderStaticPosture();
 renderRuntime(null);
 attachRuntime().catch((error) => {
-  console.warn("[security-ui] runtime attach failed", error);
+  console.warn("[cybersec-ui] runtime attach failed", error);
   renderRuntime(runtimeSnapshot);
 });
-
