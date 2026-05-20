@@ -1,13 +1,11 @@
 import "constitute-ui/styles.css";
 import "./styles.css";
 import {
+  prepareRuntimeReadModel,
   renderFirstPartyShell,
   setConnectionStateText,
 } from "constitute-ui";
-import {
-  browserStorageShellContext,
-  deriveRuntimeShellState,
-} from "constitute-ui/runtime-shell-state";
+import { browserStorageShellContext } from "constitute-ui/runtime-shell-state";
 import {
   PLATFORM_RUNTIME_BUILD_ID as RUNTIME_WORKER_BUILD_ID,
   runtimeAttachDebugInfo,
@@ -108,7 +106,12 @@ const views = {
 };
 
 let runtimeClient = null;
-let runtimeSnapshot = null;
+let runtimeReadModel = prepareRuntimeReadModel(null, {
+  context: browserStorageShellContext(),
+  now: Date.now(),
+  clientId: "cybersec-ui",
+  surface: "constitute-cybersec",
+});
 let runtimeDiagnosticsAgent = null;
 let accountBridgeFrame = null;
 let accountBridgePromise = null;
@@ -193,32 +196,48 @@ function renderStaticPosture() {
   ]);
 }
 
-function renderRuntime(snapshot = runtimeSnapshot) {
-  const shellState = deriveRuntimeShellState(snapshot, {
+function runtimeReadModelOptions() {
+  return {
     storage: browserStorageShellContext(),
+    context: browserStorageShellContext(),
     now: Date.now(),
-  });
+    clientId: "cybersec-ui",
+    surface: "constitute-cybersec",
+  };
+}
+
+function renderRuntime(readModel = runtimeReadModel) {
+  const model = readModel || prepareRuntimeReadModel(null, runtimeReadModelOptions());
+  const shellState = model.shell || {};
+  const connection = shellState.connection || {};
+  const identity = shellState.identity || {};
   setConnectionStateText(shell.connStateTextEl, {
-    label: shellState.connectionLabel,
-    toneClass: shellState.connectionToneClass,
+    label: connection.label || "Offline",
+    toneClass: connection.toneClass || "connStateText-offline",
   });
   setConnectionStateText(shell.popConnectionEl, {
-    label: shellState.connectionLabel,
-    toneClass: shellState.connectionToneClass,
+    label: connection.label || "Offline",
+    toneClass: connection.toneClass || "connStateText-offline",
   });
-  if (shell.identityHandleEl) shell.identityHandleEl.textContent = shellState.identityHandle;
+  if (shell.identityHandleEl) shell.identityHandleEl.textContent = identity.handle || "@unlinked";
+  if (shell.popRelayEl) shell.popRelayEl.textContent = shellState.relay?.state || "unknown";
+  if (shell.popGatewayEl) shell.popGatewayEl.textContent = shellState.gateway?.state || "unknown";
+  if (shell.popServicesEl) shell.popServicesEl.textContent = shellState.services?.state || "unknown";
+  if (shell.popConnectionReasonEl) shell.popConnectionReasonEl.textContent = connection.reason || "";
   if (shell.panePathEl) shell.panePathEl.textContent = `Cybersecurity / ${currentView}`;
   rowList("runtimeRows", [
-    ["Connection", shellState.connectionLabel],
-    ["Runtime", RUNTIME_WORKER_BUILD_ID],
+    ["Connection", connection.label],
+    ["Runtime", model.buildId || RUNTIME_WORKER_BUILD_ID],
     ["Worker", runtimeSharedWorkerName()],
-    ["Snapshot", snapshot ? "received" : "pending"],
+    ["Read model", model.ready ? "ready" : "pending"],
+    ["Services", model.serviceRegistry?.serviceCount || 0],
+    ["Materialization", model.materialization?.state || "unknown"],
     ["Diagnostics", runtimeDiagnosticsAgent ? "subscribed" : "pending"],
   ]);
   window.__constituteCybersec = {
     selectionReadModel: cybersecSurfaceSelectionReadModel,
     productReadModel: cybersecProductReadModel,
-    runtimeSnapshot: snapshot || null,
+    runtimeReadModel: model,
     activeWork: {
       surface: "constitute-cybersec",
       posture: cybersecProductReadModel.emptyProductPosture.state,
@@ -246,39 +265,42 @@ async function attachRuntime() {
     const createRuntimeSurfaceClient = cybersecRuntimeClientModule.createRuntimeSurfaceClient;
     runtimeClient = createRuntimeSurfaceClient({
       workerUrl: runtimeWorkerUrl(),
-      sharedWorkerName: runtimeSharedWorkerName(),
+      workerName: runtimeSharedWorkerName(),
       clientId: "cybersec-ui",
       surface: "constitute-cybersec",
       attachContext: cybersecSurfaceAttachContext,
       attachTimeoutMs: RUNTIME_ATTACH_TIMEOUT_MS,
-      writeTimeoutMs: RUNTIME_WRITE_TIMEOUT_MS,
+      callTimeoutMs: RUNTIME_WRITE_TIMEOUT_MS,
       debugInfo: runtimeAttachDebugInfo(),
+      readModelOptions: runtimeReadModelOptions(),
+      onReadModel: (readModel) => {
+        runtimeReadModel = readModel;
+        renderRuntime(readModel);
+      },
     });
-    runtimeSnapshot = await runtimeClient.attach();
+    runtimeClient.attach();
+    await runtimeClient.waitUntilAttached(RUNTIME_ATTACH_TIMEOUT_MS + 500);
   } catch (error) {
     if (!isRuntimeBrokerUnavailable(error)) throw error;
     await ensureAccountBridge();
     return await attachRuntime();
   }
-  runtimeDiagnosticsAgent = attachRuntimeDiagnostics(runtimeClient, {
+  runtimeDiagnosticsAgent = attachRuntimeDiagnostics({
+    port: runtimeClient?.port,
     clientId: "cybersec-ui",
     surface: "constitute-cybersec",
     planes: RUNTIME_DIAGNOSTIC_OPERATOR_PLANES,
   });
-  runtimeClient.subscribeSnapshot?.((snapshot) => {
-    runtimeSnapshot = snapshot;
-    renderRuntime(snapshot);
-  });
-  renderRuntime(runtimeSnapshot);
+  renderRuntime(runtimeClient?.readModel || runtimeReadModel);
 }
 
 for (const button of shell.navButtons || []) {
-  button.addEventListener("click", () => selectView(button.dataset.nav || "overview"));
+  button.addEventListener("click", () => selectView(button.dataset.activity || "overview"));
 }
 
 renderStaticPosture();
 renderRuntime(null);
 attachRuntime().catch((error) => {
   console.warn("[cybersec-ui] runtime attach failed", error);
-  renderRuntime(runtimeSnapshot);
+  renderRuntime(runtimeReadModel);
 });
