@@ -72,6 +72,11 @@ function normalizeObservedEvent(event, index) {
   return normalized;
 }
 
+function cybersecAlertEventActionable(event) {
+  return ALERT_SEVERITIES.has(event.severity)
+    || event.eventClass.toLowerCase().includes("cybersec");
+}
+
 function summarizeSeverity(events) {
   return events.reduce((counts, event) => {
     counts[event.severity] = (counts[event.severity] || 0) + 1;
@@ -336,7 +341,13 @@ export function buildCybersecProcessorRun(input = {}) {
   const seed = assertCybersecProcessorSeed(input.seed);
   const runnerOperation = assertRunnerOperation(input.runnerOperation);
   const observedAt = Number(input.now || 0) || nowSeconds();
-  const observedEvents = asArray(input.observedEvents).map(normalizeObservedEvent);
+  const observedEvents = [];
+  const alertEvents = [];
+  asArray(input.observedEvents).forEach((event, index) => {
+    const normalized = normalizeObservedEvent(event, index);
+    observedEvents.push(normalized);
+    if (cybersecAlertEventActionable(normalized)) alertEvents.push(normalized);
+  });
   const blockedReasons = [];
 
   if (seed.state !== "ready") blockedReasons.push(`seed:${seed.state}`);
@@ -350,10 +361,6 @@ export function buildCybersecProcessorRun(input = {}) {
   if (asArray(seed.detailRefs).length === 0) blockedReasons.push("missingDetailRef");
   if (asArray(seed.storageRefs).length === 0) blockedReasons.push("missingStorageRef");
 
-  const alertEvents = observedEvents.filter((event) => (
-    ALERT_SEVERITIES.has(event.severity)
-    || event.eventClass.toLowerCase().includes("cybersec")
-  ));
   const heldEventRefs = unique(observedEvents.map((event) => event.eventRef));
   const severityCounts = summarizeSeverity(observedEvents);
   const state = blockedReasons.length
