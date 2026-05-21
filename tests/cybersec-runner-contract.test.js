@@ -6,6 +6,8 @@ import {
   buildCybersecProcessorRun,
   cybersecAppContractFixture,
   cybersecBootstrapFixture,
+  cybersecEventFabricViewFixture,
+  deriveCybersecProcessorSeedFromFabric,
 } from "../src/cybersec-runner-contract.js";
 
 test("cybersec bootstrap runner emits alert and evidence-hold posture", () => {
@@ -22,6 +24,28 @@ test("cybersec bootstrap runner emits alert and evidence-hold posture", () => {
   assert.equal(report.safeFacts.storageBoundary, "ciphertextFulfillmentOnly");
   assert.equal(report.safeFacts.eventDomainBoundary, "doesNotOwn");
   assertCybersecProcessorRunReport(report);
+});
+
+test("cybersec seed derives from authorized event-fabric processor view", () => {
+  const view = cybersecEventFabricViewFixture(1_700_000_000);
+  const seed = deriveCybersecProcessorSeedFromFabric(view, {
+    seedId: "cybersec-seed:test",
+    issuedAt: 1_700_000_000,
+  });
+
+  assert.equal(seed.seedId, "cybersec-seed:test");
+  assert.equal(seed.fabricRef, "event-fabric:logging.default");
+  assert.deepEqual(seed.processorContractRefs, ["processor-contract:logging.cybersec"]);
+  assert.deepEqual(seed.inputAccessClassRefs, ["event-class:logging.cybersec.encrypted-detail"]);
+  assert.deepEqual(seed.accessGroupRefs, ["access-group:logging.cybersec.default"]);
+  assert.deepEqual(seed.inputContentClasses, ["encryptedDetail", "safeIndex"]);
+  assert.equal(seed.materializationBudgetRefs.includes("logging.cybersec.default.90d"), true);
+  assert.equal(seed.semanticBoundaries.eventDomain, "doesNotOwn");
+
+  assert.throws(() => deriveCybersecProcessorSeedFromFabric({
+    ...view,
+    processorContracts: [],
+  }), /missing processor contract/);
 });
 
 test("cybersec bootstrap blocks when runner inputs do not match seed access", () => {

@@ -1,10 +1,14 @@
 import {
   AGREEMENT,
+  LOGGING,
   RUNNER,
   SURFACE_APP,
   SWARM,
   assertCybersecProcessorSeed,
+  assertEventFabricAccessClass,
+  assertEventFabricProcessorContract,
   assertEventFabricProcessorReport,
+  assertLogEvidenceProfile,
   assertRunnerOperation,
   assertSurfaceAppContract,
   assertSurfaceAppManifest,
@@ -103,6 +107,212 @@ function outputUniverse(seed) {
     ...asArray(seed.retentionHoldRefs),
     ...asArray(seed.storageRefs),
   ]);
+}
+
+export function cybersecEventFabricViewFixture(now = nowSeconds()) {
+  const accessClass = assertEventFabricAccessClass({
+    kind: SWARM.RECORD_KIND.EVENT_FABRIC_ACCESS_CLASS,
+    classId: "event-class:logging.cybersec.encrypted-detail",
+    contentClass: AGREEMENT.CONTENT_CLASS.ENCRYPTED_DETAIL,
+    privacyTier: AGREEMENT.PRIVACY_TIER.DOMAIN_ENCRYPTED,
+    eventClasses: [
+      LOGGING.EVIDENCE_PROFILE_EVENT_CLASS.CYBERSEC_AUDIT,
+      LOGGING.EVIDENCE_PROFILE_EVENT_CLASS.RUNTIME_DIAGNOSTIC,
+      LOGGING.EVIDENCE_PROFILE_EVENT_CLASS.SERVICE_EVENT,
+      LOGGING.EVIDENCE_PROFILE_EVENT_CLASS.STORAGE_ACCESS,
+      LOGGING.EVIDENCE_PROFILE_EVENT_CLASS.MEDIA_PATH,
+    ],
+    accessGroupRefs: ["access-group:logging.cybersec.default"],
+    processorRoleRefs: ["role:logging.processor", "role:cybersec.processor"],
+    storageClass: "storage:logging.cybersec.archive",
+    retentionClass: "rolling.security-evidence",
+    safeFactPolicy: "indexOnly",
+    indexPolicy: {
+      bitemporal: true,
+      safeKeys: ["producer.service", "category", "severity", "outcome", "subject.kind"],
+      highCardinalityOverflow: "encryptedDetailRef",
+    },
+    safeFacts: {
+      eventView: "security-replay",
+      detailCustody: "encryptedDetailRef",
+    },
+    issuedAt: now,
+  });
+  const processorContract = assertEventFabricProcessorContract({
+    kind: SWARM.RECORD_KIND.EVENT_FABRIC_PROCESSOR_CONTRACT,
+    processorContractId: "processor-contract:logging.cybersec",
+    fabricRef: "event-fabric:logging.default",
+    processorRef: "constitute-cybersec",
+    processorRoleRef: "role:cybersec.processor",
+    state: "ready",
+    inputAccessClassRefs: [accessClass.classId],
+    inputEventClasses: accessClass.eventClasses,
+    inputContentClasses: [accessClass.contentClass, AGREEMENT.CONTENT_CLASS.SAFE_INDEX],
+    outputRefs: ["cybersec:alerts:logging.default", "cybersec:evidence-hold:logging.default"],
+    storageRefs: ["storage:logging.cybersec.archive"],
+    accessGroupRefs: accessClass.accessGroupRefs,
+    bitemporalPolicy: {
+      eventTimeField: "occurredAt",
+      observedTimeField: "receivedAt",
+    },
+    schemaPolicy: {
+      currentVersion: "logging.cybersec.evidence.v1",
+      unknownVersionPosture: "holdRefOnly",
+    },
+    compactionPolicy: {
+      snapshotCadence: "storageContainer",
+      compactionFloor: "retention-window:90d",
+    },
+    cardinalityPolicy: {
+      rawDetail: "byObjectRef",
+      safeFacts: "indexedSummary",
+      highCardinalityOverflow: "encryptedDetailRef",
+    },
+    encryptedDetailCustody: {
+      state: "referenceOnly",
+      accessGroupRefs: accessClass.accessGroupRefs,
+      detailRefs: ["encrypted-detail:logging.default"],
+    },
+    samplingPolicy: {
+      state: "adaptive",
+      degradeBefore: ["authority", "route", "activation"],
+    },
+    safeFacts: {
+      purpose: "cybersecThreatAnalysis",
+      detailCustody: "encryptedDetailRef",
+    },
+    evidenceRefs: ["logging.cybersec.default"],
+    blockedReasons: [],
+    issuedAt: now,
+    expiresAt: now + 90 * 24 * 60 * 60,
+  });
+  const evidenceProfile = assertLogEvidenceProfile({
+    kind: LOGGING.EVIDENCE_PROFILE_RECORD_KIND,
+    profileId: "logging.cybersec.default",
+    consumerRef: "constitute-cybersec",
+    eventClasses: accessClass.eventClasses,
+    retentionWindow: "90d",
+    safeIndexRefs: ["logging.events.safeIndex", "logging.dashboard.cybersecSummary"],
+    detailCustody: LOGGING.EVIDENCE_DETAIL_CUSTODY.ENCRYPTED_DETAIL_REF,
+    encryptedDetailRequired: true,
+    accessGrantRefs: ["grant:logging.cybersec.default"],
+    storageContainerRefs: ["storage:logging.cybersec.archive"],
+    materializationBudgetRef: "logging.cybersec.default.90d",
+    issuedAt: now,
+    expiresAt: now + 90 * 24 * 60 * 60,
+  });
+  return Object.freeze({
+    fabricRef: processorContract.fabricRef,
+    accessClasses: Object.freeze([accessClass]),
+    processorContracts: Object.freeze([processorContract]),
+    evidenceProfiles: Object.freeze([evidenceProfile]),
+    retentionHoldRefs: Object.freeze(["retention:cybersec-hold:logging.default"]),
+  });
+}
+
+export function deriveCybersecProcessorSeedFromFabric(view = {}, options = {}) {
+  const now = Number(options.issuedAt || options.now || 0) || nowSeconds();
+  const processorRef = String(options.processorRef || "constitute-cybersec");
+  const processorRoleRef = String(options.processorRoleRef || "role:cybersec.processor");
+  const fabricRef = String(options.fabricRef || view.fabricRef || "event-fabric:logging.default");
+  const accessClasses = asArray(view.accessClasses).map(assertEventFabricAccessClass);
+  const processorContracts = asArray(view.processorContracts).map(assertEventFabricProcessorContract);
+  const evidenceProfiles = asArray(view.evidenceProfiles).map(assertLogEvidenceProfile);
+  const selectedContracts = processorContracts.filter((contract) => (
+    contract.processorRef === processorRef || contract.processorRoleRef === processorRoleRef
+  ));
+  if (!selectedContracts.length) {
+    throw new Error(`cybersec event fabric view missing processor contract for ${processorRoleRef}`);
+  }
+  const contractAccessRefs = stringSet(selectedContracts.flatMap((contract) => contract.inputAccessClassRefs));
+  const selectedAccessClasses = accessClasses.filter((accessClass) => (
+    contractAccessRefs.has(accessClass.classId)
+      || asArray(accessClass.processorRoleRefs).includes(processorRoleRef)
+  ));
+  if (!selectedAccessClasses.length) {
+    throw new Error(`cybersec event fabric view missing access class for ${processorRoleRef}`);
+  }
+  const outputRefs = unique(selectedContracts.flatMap((contract) => contract.outputRefs));
+  const detailRefs = unique([
+    ...asArray(options.detailRefs),
+    ...selectedContracts.flatMap((contract) => asArray(contract.encryptedDetailCustody?.detailRefs)),
+    "encrypted-detail:logging.default",
+  ]);
+  const storageRefs = unique([
+    ...asArray(options.storageRefs),
+    ...selectedContracts.flatMap((contract) => contract.storageRefs),
+    ...evidenceProfiles.flatMap((profile) => profile.storageContainerRefs),
+  ]);
+  const accessGroupRefs = unique([
+    ...selectedAccessClasses.flatMap((accessClass) => accessClass.accessGroupRefs),
+    ...selectedContracts.flatMap((contract) => contract.accessGroupRefs),
+  ]);
+  const seed = assertCybersecProcessorSeed({
+    kind: SWARM.RECORD_KIND.CYBERSEC_PROCESSOR_SEED,
+    seedId: String(options.seedId || `cybersec-seed:${fabricRef}`),
+    fabricRef,
+    processorRef,
+    processorRoleRef,
+    state: "ready",
+    threatAnalysisRole: String(options.threatAnalysisRole || "eventFabricThreatAnalysis"),
+    inputAccessClassRefs: unique([
+      ...selectedContracts.flatMap((contract) => contract.inputAccessClassRefs),
+      ...selectedAccessClasses.map((accessClass) => accessClass.classId),
+    ]),
+    inputEventClasses: unique([
+      ...selectedContracts.flatMap((contract) => contract.inputEventClasses),
+      ...selectedAccessClasses.flatMap((accessClass) => accessClass.eventClasses),
+    ]),
+    inputContentClasses: unique([
+      ...selectedContracts.flatMap((contract) => contract.inputContentClasses),
+      ...selectedAccessClasses.map((accessClass) => accessClass.contentClass),
+    ]),
+    accessGroupRefs,
+    processorContractRefs: unique(selectedContracts.map((contract) => contract.processorContractId)),
+    evidenceProfileRefs: unique(evidenceProfiles.map((profile) => profile.profileId)),
+    materializationBudgetRefs: unique([
+      ...evidenceProfiles.map((profile) => profile.materializationBudgetRef),
+      ...selectedContracts.map((contract) => contract.materializationBudget?.budgetId),
+      ...asArray(options.materializationBudgetRefs),
+    ]),
+    storageRefs,
+    detailRefs,
+    alertOutputRefs: unique([
+      ...outputRefs.filter((ref) => ref.startsWith("cybersec:alerts")),
+      ...asArray(options.alertOutputRefs),
+    ]),
+    evidenceHoldRefs: unique([
+      ...outputRefs.filter((ref) => ref.startsWith("cybersec:evidence-hold")),
+      ...asArray(options.evidenceHoldRefs),
+    ]),
+    retentionHoldRefs: unique([
+      ...asArray(view.retentionHoldRefs),
+      ...asArray(options.retentionHoldRefs),
+    ]),
+    encryptedDetailCustody: {
+      state: "referenceOnly",
+      accessGroupRefs,
+      detailRefs,
+    },
+    semanticBoundaries: {
+      logging: "mayConsumeMaterializations",
+      storage: "ciphertextFulfillmentOnly",
+      eventDomain: "doesNotOwn",
+    },
+    safeFacts: {
+      purpose: "cybersecThreatAnalysis",
+      detailCustody: "encryptedDetailRef",
+      alerting: "seeded",
+    },
+    evidenceRefs: unique([
+      ...evidenceProfiles.map((profile) => profile.profileId),
+      ...selectedContracts.flatMap((contract) => contract.evidenceRefs),
+    ]),
+    blockedReasons: [],
+    issuedAt: now,
+    expiresAt: Number(options.expiresAt || 0) || now + 90 * 24 * 60 * 60,
+  });
+  return seed;
 }
 
 export function cybersecAppContractFixture(now = nowSeconds()) {
@@ -483,43 +693,9 @@ export function assertCybersecProcessorRunReport(record) {
 }
 
 export function cybersecBootstrapFixture(now = nowSeconds()) {
-  const seed = assertCybersecProcessorSeed({
-    kind: SWARM.RECORD_KIND.CYBERSEC_PROCESSOR_SEED,
+  const eventFabricView = cybersecEventFabricViewFixture(now);
+  const seed = deriveCybersecProcessorSeedFromFabric(eventFabricView, {
     seedId: "cybersec-seed:logging.default",
-    fabricRef: "event-fabric:logging.default",
-    processorRef: "constitute-cybersec",
-    processorRoleRef: "role:cybersec.processor",
-    state: "ready",
-    threatAnalysisRole: "eventFabricThreatAnalysis",
-    inputAccessClassRefs: ["event-class:logging.cybersec.encrypted-detail"],
-    inputEventClasses: ["runtime.diagnostic", "media.path"],
-    inputContentClasses: ["encryptedDetail", "safeIndex"],
-    accessGroupRefs: ["access-group:logging.cybersec.default"],
-    processorContractRefs: ["processor-contract:logging.cybersec"],
-    evidenceProfileRefs: ["logging.cybersec.default"],
-    materializationBudgetRefs: ["logging.cybersec.default.90d"],
-    storageRefs: ["storage:logging.cybersec.archive"],
-    detailRefs: ["encrypted-detail:logging.default"],
-    alertOutputRefs: ["cybersec:alerts:logging.default"],
-    evidenceHoldRefs: ["cybersec:evidence-hold:logging.default"],
-    retentionHoldRefs: ["retention:cybersec-hold:logging.default"],
-    encryptedDetailCustody: {
-      state: "referenceOnly",
-      accessGroupRefs: ["access-group:logging.cybersec.default"],
-      detailRefs: ["encrypted-detail:logging.default"],
-    },
-    semanticBoundaries: {
-      logging: "mayConsumeMaterializations",
-      storage: "ciphertextFulfillmentOnly",
-      eventDomain: "doesNotOwn",
-    },
-    safeFacts: {
-      purpose: "cybersecThreatAnalysis",
-      detailCustody: "encryptedDetailRef",
-      alerting: "seeded",
-    },
-    evidenceRefs: ["logging.cybersec.default"],
-    blockedReasons: [],
     issuedAt: now,
     expiresAt: now + 90 * 24 * 60 * 60,
   });
