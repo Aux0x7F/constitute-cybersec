@@ -4,6 +4,7 @@ import {
   SURFACE_APP,
   SWARM,
   assertCybersecProcessorSeed,
+  assertEventFabricProcessorReport,
   assertRunnerOperation,
   assertSurfaceAppContract,
   assertSurfaceAppManifest,
@@ -388,6 +389,30 @@ export function buildCybersecProcessorRun(input = {}) {
     eventDomainBoundary: seed.semanticBoundaries?.eventDomain || "",
   };
   rejectUnsafeSafeFacts(safeFacts, "cybersec processor run");
+  const eventFabricReport = assertEventFabricProcessorReport({
+    kind: SWARM.RECORD_KIND.EVENT_FABRIC_PROCESSOR_REPORT,
+    reportId: `event-fabric-report:${seed.seedId}:${runnerOperation.operationId}`,
+    processorContractRef: asArray(seed.processorContractRefs)[0] || seed.seedId,
+    fabricRef: seed.fabricRef,
+    processorRef: seed.processorRef,
+    processorRoleRef: seed.processorRoleRef,
+    runnerOperationRef: runnerOperation.operationId,
+    state,
+    inputRefs: unique(runnerOperation.inputRefs || []),
+    outputRefs: unique(runnerOperation.outputRefs || []),
+    inputAccessClassRefs: unique(seed.inputAccessClassRefs || []),
+    inputEventClasses: unique(seed.inputEventClasses || []),
+    inputContentClasses: unique(seed.inputContentClasses || []),
+    accessGroupRefs: unique(seed.accessGroupRefs || []),
+    observedEventRefs: unique(observedEvents.map((event) => event.eventRef)),
+    heldEventRefs,
+    storageRefs: unique(seed.storageRefs || []),
+    safeFacts,
+    evidenceRefs,
+    blockedReasons,
+    observedAt,
+    expiresAt: Number(seed.expiresAt || 0) > observedAt ? seed.expiresAt : undefined,
+  });
   return assertCybersecProcessorRunReport({
     kind: CYBERSEC_RUN_KIND,
     reportId: `cybersec-run:${seed.seedId}:${runnerOperation.operationId}`,
@@ -424,11 +449,12 @@ export function buildCybersecProcessorRun(input = {}) {
       storageRefs: unique(seed.storageRefs || []),
     },
     semanticBoundaries: seed.semanticBoundaries,
+    eventFabricReport,
     safeFacts,
     evidenceRefs,
     blockedReasons,
     observedAt,
-    expiresAt: seed.expiresAt,
+    expiresAt: Number(seed.expiresAt || 0) > observedAt ? seed.expiresAt : undefined,
   });
 }
 
@@ -447,6 +473,7 @@ export function assertCybersecProcessorRunReport(record) {
   for (const field of ["evidenceRefs", "blockedReasons"]) {
     if (!Array.isArray(record[field])) throw new Error(`cybersec processor run report ${field} must be an array`);
   }
+  assertEventFabricProcessorReport(record.eventFabricReport);
   if (record.state === "blocked" && record.blockedReasons.length === 0) {
     throw new Error("blocked cybersec processor run requires blockedReasons");
   }

@@ -11,6 +11,9 @@ import {
 test("cybersec bootstrap runner emits alert and evidence-hold posture", () => {
   const report = buildCybersecProcessorRun(cybersecBootstrapFixture());
   assert.equal(report.kind, "cybersec.processor.run.report");
+  assert.equal(report.eventFabricReport.kind, "event.fabric.processor.report");
+  assert.equal(report.eventFabricReport.processorContractRef, "processor-contract:logging.cybersec");
+  assert.deepEqual(report.eventFabricReport.observedEventRefs, ["event:runtime:media-path:1"]);
   assert.equal(report.state, "alerted");
   assert.equal(report.processorRef, "constitute-cybersec");
   assert.equal(report.alertPosture.state, "open");
@@ -33,6 +36,8 @@ test("cybersec bootstrap blocks when runner inputs do not match seed access", ()
   assert.equal(report.state, "blocked");
   assert.equal(report.blockedReasons.includes("inputRefMismatch"), true);
   assert.equal(report.accessPosture.state, "blocked");
+  assert.equal(report.eventFabricReport.state, "blocked");
+  assert.equal(report.eventFabricReport.blockedReasons.includes("inputRefMismatch"), true);
 });
 
 test("cybersec bootstrap rejects unsafe safe-fact leakage", () => {
@@ -59,6 +64,7 @@ test("cybersec bootstrap blocks expired seed posture", () => {
   assert.equal(report.state, "blocked");
   assert.equal(report.blockedReasons.includes("seedExpired"), true);
   assert.equal(report.blockedReasons.includes("runnerOperationExpired"), true);
+  assert.equal(report.eventFabricReport.expiresAt, undefined);
 });
 
 test("cybersec app fixture declares event fabric, access, and materialization requirements", () => {
