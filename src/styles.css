@@ -1,36 +1,36 @@
-.securityMain {
+.cybersecMain {
   display: flex;
   flex-direction: column;
   gap: 16px;
   min-height: 100%;
 }
 
-.securityView {
+.cybersecView {
   display: flex;
   flex-direction: column;
   gap: 16px;
 }
 
-.securityGrid {
+.cybersecGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
 }
 
-.securityPanel {
+.cybersecPanel {
   margin-top: 16px;
 }
 
-.securityHero .cuPanelBody {
+.cybersecHero .cuPanelBody {
   padding-top: 4px;
 }
 
-.securityRows {
+.cybersecRows {
   display: grid;
   gap: 8px;
 }
 
-.securityRow {
+.cybersecRow {
   display: grid;
   grid-template-columns: minmax(120px, 0.35fr) minmax(0, 1fr);
   gap: 12px;
@@ -40,28 +40,28 @@
   border-bottom: 1px solid color-mix(in srgb, var(--cuBorder, #d7dce2), transparent 35%);
 }
 
-.securityRow:last-child {
+.cybersecRow:last-child {
   border-bottom: 0;
 }
 
-.securityRowKey {
+.cybersecRowKey {
   color: var(--cuTextSubtle, #64748b);
   font-size: 0.78rem;
   text-transform: uppercase;
 }
 
-.securityRowValue {
+.cybersecRowValue {
   color: var(--cuText, #111827);
   font-size: 0.94rem;
   overflow-wrap: anywhere;
 }
 
 @media (max-width: 760px) {
-  .securityGrid {
+  .cybersecGrid {
     grid-template-columns: 1fr;
   }
 
-  .securityRow {
+  .cybersecRow {
     grid-template-columns: 1fr;
   }
 }

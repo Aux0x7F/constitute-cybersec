@@ -1,24 +1,24 @@
 const EMPTY_PRODUCT_POSTURE = Object.freeze({
-  kind: "security.product.posture",
+  kind: "cybersec.product.posture",
   state: "emptyProductPosture",
-  reason: "security processor runway is seeded; threat workflows are not built",
+  reason: "cybersec processor runway is seeded; threat workflows are not built",
 });
 
-export function prepareSecurityReadModel({
+export function prepareCybersecReadModel({
   fixture,
   selectionReadModel,
-  securityRunReport,
+  cybersecRunReport,
   runnerFulfillmentReport,
 } = {}) {
   const seed = fixture?.seed || {};
   const appContract = fixture?.appContract || {};
-  const materialization = securityRunReport?.materializationPosture || {};
-  const alert = securityRunReport?.alertPosture || {};
-  const evidence = securityRunReport?.evidenceHoldPosture || {};
-  const access = securityRunReport?.accessPosture || {};
+  const materialization = cybersecRunReport?.materializationPosture || {};
+  const alert = cybersecRunReport?.alertPosture || {};
+  const evidence = cybersecRunReport?.evidenceHoldPosture || {};
+  const access = cybersecRunReport?.accessPosture || {};
 
   return deepFreeze({
-    kind: "security.surface.readModel",
+    kind: "cybersec.surface.readModel",
     state: selectionReadModel?.state || "unknown",
     app: {
       appId: appContract.appId || "",
@@ -60,7 +60,7 @@ export function prepareSecurityReadModel({
     materialization: {
       state: materialization.state || "unknown",
       materializationBudgetRefs: materialization.materializationBudgetRefs || seed.materializationBudgetRefs || [],
-      storageRefs: securityRunReport?.storageRefs || seed.storageRefs || [],
+      storageRefs: cybersecRunReport?.storageRefs || seed.storageRefs || [],
     },
     runner: {
       state: runnerFulfillmentReport?.state || "unknown",
@@ -78,7 +78,7 @@ export function prepareSecurityReadModel({
   });
 }
 
-export function securitySummaryRows(model) {
+export function cybersecSummaryRows(model) {
   return [
     ["App", `${model.app.appId}@${model.app.version}`],
     ["Selection", model.state],
@@ -148,4 +148,3 @@ function deepFreeze(value) {
   for (const key of Object.keys(value)) deepFreeze(value[key]);
   return Object.freeze(value);
 }
-

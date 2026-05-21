@@ -1,18 +1,18 @@
 {
-  "name": "constitute-security",
+  "name": "constitute-cybersec",
   "targets": {
     "build": {
       "executor": "nx:run-commands",
       "options": {
         "command": "npm run build",
-        "cwd": "constitute-security"
+        "cwd": "constitute-cybersec"
       }
     },
     "test": {
       "executor": "nx:run-commands",
       "options": {
         "command": "npm test",
-        "cwd": "constitute-security"
+        "cwd": "constitute-cybersec"
       }
     }
   }
