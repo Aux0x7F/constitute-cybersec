@@ -230,6 +230,8 @@ function renderRuntime(readModel = runtimeReadModel) {
     ["Runtime", model.buildId || RUNTIME_WORKER_BUILD_ID],
     ["Worker", runtimeSharedWorkerName()],
     ["Read model", model.ready ? "ready" : "pending"],
+    ["Target", [model.target?.state || "pending", model.target?.targetRef || ""].filter(Boolean).join(" / ")],
+    ["Fabric", [model.fabric?.state || "pending", model.fabric?.planId || ""].filter(Boolean).join(" / ")],
     ["Services", model.serviceRegistry?.serviceCount || 0],
     ["Materialization", model.materialization?.state || "unknown"],
     ["Diagnostics", runtimeDiagnosticsAgent ? "subscribed" : "pending"],

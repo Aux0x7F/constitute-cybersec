@@ -57,6 +57,8 @@ test("Cybersecurity UI imports shared runtime helpers and does not construct rou
   assert.match(source, /\.\.\/\.\.\/constitute-account\/runtime-contract\.js/);
   assert.match(source, /createRuntimeSurfaceClient/);
   assert.match(source, /prepareRuntimeReadModel/);
+  assert.match(source, /model\.target\?\.state/);
+  assert.match(source, /model\.fabric\?\.state/);
   assert.doesNotMatch(source, /\bruntimeSnapshot\b/);
   assert.doesNotMatch(source, /SwarmFrame|makeSwarmFrame|makeService|stream\.session\.(?:intent|offer|answer|candidate|control|close|health)/);
 });
