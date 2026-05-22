@@ -9,9 +9,9 @@
     "test": "node --test tests/*.test.js"
   },
   "dependencies": {
-    "constitute-protocol": "file:../constitute-protocol",
-    "constitute-runner": "file:../constitute-runner",
-    "constitute-ui": "file:../constitute-ui"
+    "constitute-protocol": "github:Aux0x7F/constitute-protocol#main",
+    "constitute-runner": "github:Aux0x7F/constitute-runner#main",
+    "constitute-ui": "github:Aux0x7F/constitute-ui#main"
   },
   "devDependencies": {
     "vite": "^7.1.7"
