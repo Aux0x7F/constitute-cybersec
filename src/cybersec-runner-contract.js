@@ -67,8 +67,14 @@ export const CYBERSEC_REDUCTION_PROFILES = Object.freeze([
     findingSlug: "evidence-custody",
     actionKind: "requestEvidence",
     matches: (event) => event.eventClass === LOGGING.EVIDENCE_PROFILE_EVENT_CLASS.EVIDENCE_REQUEST
+      || (
+        event.eventClass === LOGGING.EVIDENCE_PROFILE_EVENT_CLASS.STORAGE_ACCESS
+        && eventText(event).includes("custody")
+      )
       || eventText(event).includes("missingevidence")
-      || eventText(event).includes("evidencerequest"),
+      || eventText(event).includes("evidencerequest")
+      || eventText(event).includes("evidencecustody")
+      || eventText(event).includes("storagefulfillment"),
   },
   {
     profileRef: "cybersec:profile:host-security",
@@ -155,6 +161,9 @@ function eventText(event) {
     event.safeFacts?.state,
     event.safeFacts?.subjectKind,
     event.safeFacts?.category,
+    event.safeFacts?.custody,
+    event.safeFacts?.detailCustody,
+    event.safeFacts?.accessAuthority,
   ].map((value) => String(value || "").toLowerCase()).join(" ");
 }
 

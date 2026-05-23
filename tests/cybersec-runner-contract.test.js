@@ -217,6 +217,25 @@ test("cybersec reduction profile derivation is safe-fact bounded", () => {
   assert.deepEqual(posture.ruleRefs, ["cybersec:rule:host-security-signal"]);
 });
 
+test("cybersec reduction profiles treat storage custody posture as evidence input", () => {
+  const posture = deriveCybersecReductionProfiles([{
+    eventRef: "event:storage:evidence-custody:1",
+    eventClass: LOGGING.EVIDENCE_PROFILE_EVENT_CLASS.STORAGE_ACCESS,
+    severity: "info",
+    safeFacts: {
+      custody: "storageFulfillment",
+      accessAuthority: "notOwned",
+      detailCustody: "encryptedDetailRef",
+      subjectKind: "encryptedDetail",
+    },
+  }]);
+
+  assert.equal(posture.state, "active");
+  assert.deepEqual(posture.profileRefs, ["cybersec:profile:evidence-custody"]);
+  assert.deepEqual(posture.ruleRefs, ["cybersec:rule:evidence-custody-request"]);
+  assert.deepEqual(posture.actionKinds, ["requestEvidence"]);
+});
+
 test("cybersec adversarial fixture blocks missing encrypted-detail authority and custody", () => {
   const now = 1_700_000_000;
   const fixture = cybersecBootstrapFixture(now);
