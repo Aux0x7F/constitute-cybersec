@@ -9,7 +9,7 @@
     "test": "node --test tests/*.test.js"
   },
   "dependencies": {
-    "constitute-protocol": "github:Aux0x7F/constitute-protocol#0x/hardening-posture",
+    "constitute-protocol": "github:Aux0x7F/constitute-protocol#main",
     "constitute-runner": "github:Aux0x7F/constitute-runner#main",
     "constitute-ui": "github:Aux0x7F/constitute-ui#main"
   },
