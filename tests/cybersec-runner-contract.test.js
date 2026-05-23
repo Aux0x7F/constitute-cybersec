@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { LOGGING } from "constitute-protocol";
 import { assertAppRunnerFulfillmentReport, buildAppRunnerFulfillment } from "constitute-runner";
 import {
   assertCybersecProcessorRunReport,
@@ -58,10 +59,10 @@ test("cybersec seed derives from authorized event-fabric processor view", () => 
   assert.deepEqual(seed.inputAccessClassRefs, ["event-class:logging.cybersec.encrypted-detail"]);
   assert.deepEqual(seed.accessGroupRefs, ["access-group:logging.cybersec.default"]);
   assert.deepEqual(seed.inputContentClasses, ["encryptedDetail", "safeIndex"]);
-  assert.equal(seed.inputEventClasses.includes("hostSecurity"), true);
-  assert.equal(seed.inputEventClasses.includes("serviceHardening"), true);
-  assert.equal(seed.inputEventClasses.includes("networkExposure"), true);
-  assert.equal(seed.inputEventClasses.includes("evidenceRequest"), true);
+  assert.equal(seed.inputEventClasses.includes(LOGGING.EVIDENCE_PROFILE_EVENT_CLASS.HOST_SECURITY), true);
+  assert.equal(seed.inputEventClasses.includes(LOGGING.EVIDENCE_PROFILE_EVENT_CLASS.SERVICE_HARDENING), true);
+  assert.equal(seed.inputEventClasses.includes(LOGGING.EVIDENCE_PROFILE_EVENT_CLASS.NETWORK_EXPOSURE), true);
+  assert.equal(seed.inputEventClasses.includes(LOGGING.EVIDENCE_PROFILE_EVENT_CLASS.EVIDENCE_REQUEST), true);
   assert.deepEqual(seed.retentionHoldRefs, [
     "retention:cybersec-hold:logging.default",
     "retention:cybersec:logging.default",
@@ -153,7 +154,7 @@ test("cybersec reduction profiles classify hardening and exposure events without
     observedEvents: [
       {
         eventRef: "event:hardening:service-manager:1",
-        eventClass: "serviceHardening",
+        eventClass: LOGGING.EVIDENCE_PROFILE_EVENT_CLASS.SERVICE_HARDENING,
         severity: "info",
         observedAt: now + 90,
         safeFacts: {
@@ -163,7 +164,7 @@ test("cybersec reduction profiles classify hardening and exposure events without
       },
       {
         eventRef: "event:exposure:gateway:1",
-        eventClass: "networkExposure",
+        eventClass: LOGGING.EVIDENCE_PROFILE_EVENT_CLASS.NETWORK_EXPOSURE,
         severity: "info",
         observedAt: now + 91,
         safeFacts: {
@@ -174,7 +175,7 @@ test("cybersec reduction profiles classify hardening and exposure events without
       },
       {
         eventRef: "event:evidence:request:1",
-        eventClass: "evidenceRequest",
+        eventClass: LOGGING.EVIDENCE_PROFILE_EVENT_CLASS.EVIDENCE_REQUEST,
         severity: "info",
         observedAt: now + 92,
         safeFacts: {
@@ -203,7 +204,7 @@ test("cybersec reduction profiles classify hardening and exposure events without
 test("cybersec reduction profile derivation is safe-fact bounded", () => {
   const posture = deriveCybersecReductionProfiles([{
     eventRef: "event:host:security:1",
-    eventClass: "hostSecurity",
+    eventClass: LOGGING.EVIDENCE_PROFILE_EVENT_CLASS.HOST_SECURITY,
     severity: "info",
     safeFacts: {
       posture: "hostSecurityObserved",
