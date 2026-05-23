@@ -20,6 +20,20 @@ test("cybersec bootstrap runner emits alert and evidence-hold posture", () => {
   assert.equal(report.processorRef, "constitute-cybersec");
   assert.equal(report.alertPosture.state, "open");
   assert.equal(report.evidenceHoldPosture.state, "holding");
+  assert.deepEqual(report.eventFabricReport.findingRefs, ["cybersec:finding:cybersec-seed:logging.default:media-path"]);
+  assert.deepEqual(report.eventFabricReport.evidenceHoldRefs, ["cybersec:evidence-holds:logging.default"]);
+  assert.deepEqual(report.eventFabricReport.retentionDemandRefs, [
+    "retention:cybersec-hold:logging.default",
+    "retention:cybersec:logging.default",
+  ]);
+  assert.deepEqual(report.eventFabricReport.mitigationRecommendationRefs, ["cybersec:recommendation:cybersec-seed:logging.default:request-evidence"]);
+  assert.equal(report.findingRecords.length, 1);
+  assert.equal(report.findingRecords[0].state, "open");
+  assert.equal(report.findingRecords[0].severity, "medium");
+  assert.equal(report.evidenceHoldRecords.length, 1);
+  assert.equal(report.evidenceHoldRecords[0].state, "holding");
+  assert.equal(report.mitigationRecommendationRecords.length, 1);
+  assert.equal(report.mitigationRecommendationRecords[0].actionKind, "requestEvidence");
   assert.deepEqual(report.blockedReasons, []);
   assert.equal(report.safeFacts.storageBoundary, "ciphertextFulfillmentOnly");
   assert.equal(report.safeFacts.eventDomainBoundary, "doesNotOwn");
@@ -39,6 +53,10 @@ test("cybersec seed derives from authorized event-fabric processor view", () => 
   assert.deepEqual(seed.inputAccessClassRefs, ["event-class:logging.cybersec.encrypted-detail"]);
   assert.deepEqual(seed.accessGroupRefs, ["access-group:logging.cybersec.default"]);
   assert.deepEqual(seed.inputContentClasses, ["encryptedDetail", "safeIndex"]);
+  assert.deepEqual(seed.retentionHoldRefs, [
+    "retention:cybersec-hold:logging.default",
+    "retention:cybersec:logging.default",
+  ]);
   assert.equal(seed.materializationBudgetRefs.includes("logging.cybersec.default.90d"), true);
   assert.equal(seed.semanticBoundaries.eventDomain, "doesNotOwn");
 

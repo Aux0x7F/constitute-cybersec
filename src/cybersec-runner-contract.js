@@ -4,6 +4,9 @@ import {
   RUNNER,
   SURFACE_APP,
   SWARM,
+  assertCybersecEvidenceHold,
+  assertCybersecFinding,
+  assertCybersecMitigationRecommendation,
   assertCybersecProcessorSeed,
   assertEventFabricAccessClass,
   assertEventFabricProcessorContract,
@@ -148,7 +151,13 @@ export function cybersecEventFabricViewFixture(now = nowSeconds()) {
     inputAccessClassRefs: [accessClass.classId],
     inputEventClasses: accessClass.eventClasses,
     inputContentClasses: [accessClass.contentClass, AGREEMENT.CONTENT_CLASS.SAFE_INDEX],
-    outputRefs: ["cybersec:alerts:logging.default", "cybersec:evidence-hold:logging.default"],
+    outputRefs: [
+      "cybersec:findings:logging.default",
+      "cybersec:alerts:logging.default",
+      "cybersec:evidence-holds:logging.default",
+      "retention:cybersec:logging.default",
+      "cybersec:mitigation-recommendations:logging.default",
+    ],
     storageRefs: ["storage:logging.cybersec.archive"],
     accessGroupRefs: accessClass.accessGroupRefs,
     bitemporalPolicy: {
@@ -287,6 +296,7 @@ export function deriveCybersecProcessorSeedFromFabric(view = {}, options = {}) {
     ]),
     retentionHoldRefs: unique([
       ...asArray(view.retentionHoldRefs),
+      ...outputRefs.filter((ref) => ref.startsWith("retention:")),
       ...asArray(options.retentionHoldRefs),
     ]),
     encryptedDetailCustody: {
@@ -617,12 +627,88 @@ export function buildCybersecProcessorRun(input = {}) {
     observedEventRefs: unique(observedEvents.map((event) => event.eventRef)),
     heldEventRefs,
     storageRefs: unique(seed.storageRefs || []),
+    findingRefs: alertEvents.length ? [`cybersec:finding:${seed.seedId}:media-path`] : [],
+    alertRefs: unique(alertEvents.map((event) => `cybersec:alert:${event.eventRef}`)),
+    evidenceHoldRefs: heldEventRefs.length ? unique(seed.evidenceHoldRefs || []) : [],
+    retentionDemandRefs: heldEventRefs.length ? unique(seed.retentionHoldRefs || []) : [],
+    mitigationRecommendationRefs: alertEvents.length
+      ? [`cybersec:recommendation:${seed.seedId}:request-evidence`]
+      : [],
     safeFacts,
     evidenceRefs,
     blockedReasons,
     observedAt,
     expiresAt: Number(seed.expiresAt || 0) > observedAt ? seed.expiresAt : undefined,
   });
+  const findingRecords = eventFabricReport.findingRefs.map((findingRef) => assertCybersecFinding({
+    kind: SWARM.RECORD_KIND.CYBERSEC_FINDING,
+    findingId: findingRef,
+    processorReportRef: eventFabricReport.reportId,
+    processorRef: seed.processorRef,
+    processorRoleRef: seed.processorRoleRef,
+    subjectRef: seed.fabricRef,
+    findingKind: "eventFabricAnomaly",
+    severity: alertEvents.some((event) => event.severity === "critical") ? "critical" : "medium",
+    state: blockedReasons.length ? "blocked" : "open",
+    confidenceScore: alertEvents.length ? 0.72 : 0,
+    inputAccessClassRefs: unique(seed.inputAccessClassRefs || []),
+    observedEventRefs: unique(alertEvents.map((event) => event.eventRef)),
+    accessGroupRefs: unique(seed.accessGroupRefs || []),
+    evidenceRefs: [eventFabricReport.reportId, ...unique(alertEvents.map((event) => event.eventRef))],
+    evidenceHoldRefs: eventFabricReport.evidenceHoldRefs,
+    retentionDemandRefs: eventFabricReport.retentionDemandRefs,
+    mitigationRecommendationRefs: eventFabricReport.mitigationRecommendationRefs,
+    safeFacts: {
+      findingKind: "eventFabricAnomaly",
+      severity: alertEvents.some((event) => event.severity === "critical") ? "critical" : "medium",
+      alertEventCount: alertEvents.length,
+    },
+    blockedReasons,
+    observedAt,
+    expiresAt: Number(seed.expiresAt || 0) > observedAt ? seed.expiresAt : undefined,
+  }));
+  const evidenceHoldRecords = eventFabricReport.evidenceHoldRefs.map((holdRef) => assertCybersecEvidenceHold({
+    kind: SWARM.RECORD_KIND.CYBERSEC_EVIDENCE_HOLD,
+    holdId: holdRef,
+    findingRef: eventFabricReport.findingRefs[0] || `cybersec:finding:${seed.seedId}:none`,
+    processorReportRef: eventFabricReport.reportId,
+    subjectRef: seed.fabricRef,
+    state: blockedReasons.length ? "blocked" : "holding",
+    eventRefs: heldEventRefs,
+    detailRefs: unique(seed.detailRefs || []),
+    storageRefs: unique(seed.storageRefs || []),
+    retentionDemandRefs: eventFabricReport.retentionDemandRefs,
+    accessGroupRefs: unique(seed.accessGroupRefs || []),
+    evidenceRefs: [eventFabricReport.reportId, ...heldEventRefs],
+    safeFacts: {
+      heldEventCount: heldEventRefs.length,
+      detailRefCount: asArray(seed.detailRefs).length,
+      storageRefCount: asArray(seed.storageRefs).length,
+    },
+    blockedReasons,
+    issuedAt: observedAt,
+    expiresAt: Number(seed.expiresAt || 0) > observedAt ? seed.expiresAt : undefined,
+  }));
+  const mitigationRecommendationRecords = eventFabricReport.mitigationRecommendationRefs.map((recommendationRef) => assertCybersecMitigationRecommendation({
+    kind: SWARM.RECORD_KIND.CYBERSEC_MITIGATION_RECOMMENDATION,
+    recommendationId: recommendationRef,
+    findingRef: eventFabricReport.findingRefs[0] || `cybersec:finding:${seed.seedId}:none`,
+    processorReportRef: eventFabricReport.reportId,
+    recommenderRef: seed.processorRef,
+    actionKind: "requestEvidence",
+    targetRef: seed.fabricRef,
+    state: blockedReasons.length ? "blocked" : "recommended",
+    authorityRefs: ["authority:cybersec.bootstrap"],
+    consumerRefs: ["constitute-gateway", "constitute-moderation"],
+    evidenceRefs: [eventFabricReport.reportId],
+    safeFacts: {
+      recommendationOnly: true,
+      enforcementOwner: "consumer",
+    },
+    blockedReasons,
+    issuedAt: observedAt,
+    expiresAt: Number(seed.expiresAt || 0) > observedAt ? seed.expiresAt : undefined,
+  }));
   return assertCybersecProcessorRunReport({
     kind: CYBERSEC_RUN_KIND,
     reportId: `cybersec-run:${seed.seedId}:${runnerOperation.operationId}`,
@@ -660,6 +746,9 @@ export function buildCybersecProcessorRun(input = {}) {
     },
     semanticBoundaries: seed.semanticBoundaries,
     eventFabricReport,
+    findingRecords,
+    evidenceHoldRecords,
+    mitigationRecommendationRecords,
     safeFacts,
     evidenceRefs,
     blockedReasons,
@@ -684,6 +773,9 @@ export function assertCybersecProcessorRunReport(record) {
     if (!Array.isArray(record[field])) throw new Error(`cybersec processor run report ${field} must be an array`);
   }
   assertEventFabricProcessorReport(record.eventFabricReport);
+  asArray(record.findingRecords).forEach(assertCybersecFinding);
+  asArray(record.evidenceHoldRecords).forEach(assertCybersecEvidenceHold);
+  asArray(record.mitigationRecommendationRecords).forEach(assertCybersecMitigationRecommendation);
   if (record.state === "blocked" && record.blockedReasons.length === 0) {
     throw new Error("blocked cybersec processor run requires blockedReasons");
   }
@@ -713,7 +805,7 @@ export function cybersecBootstrapFixture(now = nowSeconds()) {
     grantRefs: ["authority-grant:runner:cybersec-bootstrap"],
     capabilityRefs: ["app.runner.pin"],
     inputRefs: [seed.fabricRef, ...seed.inputAccessClassRefs],
-    outputRefs: [...seed.alertOutputRefs, ...seed.evidenceHoldRefs],
+    outputRefs: [...seed.alertOutputRefs, ...seed.evidenceHoldRefs, ...seed.retentionHoldRefs],
     evidenceRefs: ["evidence:runner:started", "evidence:runner:completed"],
     proofRefs: ["proof:runner:cybersec-bootstrap"],
     releaseRefs: ["release:runner:cybersec-bootstrap"],
