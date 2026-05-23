@@ -53,6 +53,10 @@ test("cybersec seed derives from authorized event-fabric processor view", () => 
   assert.deepEqual(seed.inputAccessClassRefs, ["event-class:logging.cybersec.encrypted-detail"]);
   assert.deepEqual(seed.accessGroupRefs, ["access-group:logging.cybersec.default"]);
   assert.deepEqual(seed.inputContentClasses, ["encryptedDetail", "safeIndex"]);
+  assert.equal(seed.inputEventClasses.includes("hostSecurity"), true);
+  assert.equal(seed.inputEventClasses.includes("serviceHardening"), true);
+  assert.equal(seed.inputEventClasses.includes("networkExposure"), true);
+  assert.equal(seed.inputEventClasses.includes("evidenceRequest"), true);
   assert.deepEqual(seed.retentionHoldRefs, [
     "retention:cybersec-hold:logging.default",
     "retention:cybersec:logging.default",
