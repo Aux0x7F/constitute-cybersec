@@ -7,6 +7,7 @@ import {
   cybersecAppContractFixture,
   cybersecBootstrapFixture,
   cybersecEventFabricViewFixture,
+  deriveCybersecReductionProfiles,
   deriveCybersecProcessorSeedFromFabric,
 } from "../src/cybersec-runner-contract.js";
 
@@ -19,6 +20,9 @@ test("cybersec bootstrap runner emits alert and evidence-hold posture", () => {
   assert.equal(report.state, "alerted");
   assert.equal(report.processorRef, "constitute-cybersec");
   assert.equal(report.alertPosture.state, "open");
+  assert.equal(report.reductionProfilePosture.state, "active");
+  assert.deepEqual(report.reductionProfilePosture.profileRefs, ["cybersec:profile:media-path"]);
+  assert.deepEqual(report.reductionProfilePosture.ruleRefs, ["cybersec:rule:media-path-actionability"]);
   assert.equal(report.evidenceHoldPosture.state, "holding");
   assert.deepEqual(report.eventFabricReport.findingRefs, ["cybersec:finding:cybersec-seed:logging.default:media-path"]);
   assert.deepEqual(report.eventFabricReport.evidenceHoldRefs, ["cybersec:evidence-holds:logging.default"]);
@@ -30,6 +34,7 @@ test("cybersec bootstrap runner emits alert and evidence-hold posture", () => {
   assert.equal(report.findingRecords.length, 1);
   assert.equal(report.findingRecords[0].state, "open");
   assert.equal(report.findingRecords[0].severity, "medium");
+  assert.equal(report.findingRecords[0].findingKind, "mediaPathAnomaly");
   assert.equal(report.evidenceHoldRecords.length, 1);
   assert.equal(report.evidenceHoldRecords[0].state, "holding");
   assert.equal(report.mitigationRecommendationRecords.length, 1);
@@ -125,6 +130,8 @@ test("cybersec adversarial fixture keeps hostile route evidence as recommendatio
 
   assert.equal(report.state, "alerted");
   assert.equal(report.findingRecords[0].severity, "critical");
+  assert.equal(report.reductionProfilePosture.profileRefs.includes("cybersec:profile:route-member"), true);
+  assert.equal(report.findingRecords[0].safeFacts.reductionRuleRefs.includes("cybersec:rule:route-member-integrity"), true);
   assert.equal(report.findingRecords[0].observedEventRefs.includes("event:route:hostile-member:1"), true);
   assert.equal(report.evidenceHoldRecords[0].eventRefs.includes("event:route:hostile-member:1"), true);
   assert.deepEqual(report.evidenceHoldRecords[0].retentionDemandRefs, [
@@ -135,6 +142,78 @@ test("cybersec adversarial fixture keeps hostile route evidence as recommendatio
   assert.equal(report.mitigationRecommendationRecords[0].safeFacts.recommendationOnly, true);
   assert.equal(report.mitigationRecommendationRecords[0].safeFacts.enforcementOwner, "consumer");
   assert.equal(JSON.stringify(report).includes("plaintext"), false);
+});
+
+test("cybersec reduction profiles classify hardening and exposure events without severity escalation hacks", () => {
+  const now = 1_700_000_000;
+  const fixture = cybersecBootstrapFixture(now);
+  const report = buildCybersecProcessorRun({
+    ...fixture,
+    now: now + 100,
+    observedEvents: [
+      {
+        eventRef: "event:hardening:service-manager:1",
+        eventClass: "serviceHardening",
+        severity: "info",
+        observedAt: now + 90,
+        safeFacts: {
+          posture: "missingFirewallEvidence",
+          subjectKind: "service",
+        },
+      },
+      {
+        eventRef: "event:exposure:gateway:1",
+        eventClass: "networkExposure",
+        severity: "info",
+        observedAt: now + 91,
+        safeFacts: {
+          posture: "firewallRuleMissing",
+          state: "exposed",
+          subjectKind: "gateway",
+        },
+      },
+      {
+        eventRef: "event:evidence:request:1",
+        eventClass: "evidenceRequest",
+        severity: "info",
+        observedAt: now + 92,
+        safeFacts: {
+          posture: "missingEvidence",
+          subjectKind: "firewall",
+        },
+      },
+    ],
+  });
+
+  assert.equal(report.state, "alerted");
+  assert.equal(report.alertPosture.alertEventRefs.length, 3);
+  assert.deepEqual(report.reductionProfilePosture.profileRefs, [
+    "cybersec:profile:service-hardening",
+    "cybersec:profile:network-exposure",
+    "cybersec:profile:evidence-custody",
+  ]);
+  assert.equal(report.reductionProfilePosture.findingKinds.includes("serviceHardeningDrift"), true);
+  assert.equal(report.reductionProfilePosture.findingKinds.includes("networkExposureDrift"), true);
+  assert.equal(report.reductionProfilePosture.findingKinds.includes("evidenceCustodyGap"), true);
+  assert.equal(report.findingRecords[0].findingKind, "serviceHardeningDrift");
+  assert.equal(report.mitigationRecommendationRecords[0].actionKind, "retainEvidence");
+  assert.equal(JSON.stringify(report).includes("plaintext"), false);
+});
+
+test("cybersec reduction profile derivation is safe-fact bounded", () => {
+  const posture = deriveCybersecReductionProfiles([{
+    eventRef: "event:host:security:1",
+    eventClass: "hostSecurity",
+    severity: "info",
+    safeFacts: {
+      posture: "hostSecurityObserved",
+      subjectKind: "host",
+    },
+  }]);
+
+  assert.equal(posture.state, "active");
+  assert.deepEqual(posture.profileRefs, ["cybersec:profile:host-security"]);
+  assert.deepEqual(posture.ruleRefs, ["cybersec:rule:host-security-signal"]);
 });
 
 test("cybersec adversarial fixture blocks missing encrypted-detail authority and custody", () => {

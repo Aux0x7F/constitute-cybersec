@@ -16,6 +16,7 @@ export function prepareCybersecReadModel({
   const alert = cybersecRunReport?.alertPosture || {};
   const evidence = cybersecRunReport?.evidenceHoldPosture || {};
   const access = cybersecRunReport?.accessPosture || {};
+  const reduction = cybersecRunReport?.reductionProfilePosture || {};
 
   return deepFreeze({
     kind: "cybersec.surface.readModel",
@@ -50,6 +51,14 @@ export function prepareCybersecReadModel({
       alertOutputRefs: alert.alertOutputRefs || seed.alertOutputRefs || [],
       alertEventRefs: alert.alertEventRefs || [],
       severityCounts: alert.severityCounts || {},
+    },
+    reduction: {
+      state: reduction.state || "unknown",
+      profileRefs: reduction.profileRefs || [],
+      ruleRefs: reduction.ruleRefs || [],
+      findingKinds: reduction.findingKinds || [],
+      actionKinds: reduction.actionKinds || [],
+      matchedEventRefs: reduction.matchedEventRefs || [],
     },
     evidence: {
       state: evidence.state || "unknown",
@@ -86,6 +95,7 @@ export function cybersecSummaryRows(model) {
     ["Fabric", model.processor.fabricRef],
     ["Access", model.access.state],
     ["Alerts", model.alert.state],
+    ["Reduction", model.reduction.state],
     ["Evidence hold", model.evidence.state],
     ["Materialization", model.materialization.state],
     ["Runner", model.runner.state],
@@ -126,6 +136,15 @@ export function postureRows(model, key) {
       ["Holds", value.evidenceHoldRefs.join(", ")],
       ["Retention", value.retentionHoldRefs.join(", ")],
       ["Held events", value.heldEventRefs.length],
+    ];
+  }
+  if (key === "reduction") {
+    return [
+      ["State", value.state],
+      ["Profiles", value.profileRefs.join(", ")],
+      ["Rules", value.ruleRefs.join(", ")],
+      ["Findings", value.findingKinds.join(", ")],
+      ["Events", value.matchedEventRefs.length],
     ];
   }
   if (key === "materialization") {
