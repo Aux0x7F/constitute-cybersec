@@ -20,6 +20,20 @@ test("cybersec bootstrap runner emits alert and evidence-hold posture", () => {
   assert.equal(report.processorRef, "constitute-cybersec");
   assert.equal(report.alertPosture.state, "open");
   assert.equal(report.evidenceHoldPosture.state, "holding");
+  assert.deepEqual(report.eventFabricReport.findingRefs, ["cybersec:finding:cybersec-seed:logging.default:media-path"]);
+  assert.deepEqual(report.eventFabricReport.evidenceHoldRefs, ["cybersec:evidence-holds:logging.default"]);
+  assert.deepEqual(report.eventFabricReport.retentionDemandRefs, [
+    "retention:cybersec-hold:logging.default",
+    "retention:cybersec:logging.default",
+  ]);
+  assert.deepEqual(report.eventFabricReport.mitigationRecommendationRefs, ["cybersec:recommendation:cybersec-seed:logging.default:request-evidence"]);
+  assert.equal(report.findingRecords.length, 1);
+  assert.equal(report.findingRecords[0].state, "open");
+  assert.equal(report.findingRecords[0].severity, "medium");
+  assert.equal(report.evidenceHoldRecords.length, 1);
+  assert.equal(report.evidenceHoldRecords[0].state, "holding");
+  assert.equal(report.mitigationRecommendationRecords.length, 1);
+  assert.equal(report.mitigationRecommendationRecords[0].actionKind, "requestEvidence");
   assert.deepEqual(report.blockedReasons, []);
   assert.equal(report.safeFacts.storageBoundary, "ciphertextFulfillmentOnly");
   assert.equal(report.safeFacts.eventDomainBoundary, "doesNotOwn");
@@ -39,6 +53,10 @@ test("cybersec seed derives from authorized event-fabric processor view", () => 
   assert.deepEqual(seed.inputAccessClassRefs, ["event-class:logging.cybersec.encrypted-detail"]);
   assert.deepEqual(seed.accessGroupRefs, ["access-group:logging.cybersec.default"]);
   assert.deepEqual(seed.inputContentClasses, ["encryptedDetail", "safeIndex"]);
+  assert.deepEqual(seed.retentionHoldRefs, [
+    "retention:cybersec-hold:logging.default",
+    "retention:cybersec:logging.default",
+  ]);
   assert.equal(seed.materializationBudgetRefs.includes("logging.cybersec.default.90d"), true);
   assert.equal(seed.semanticBoundaries.eventDomain, "doesNotOwn");
 
@@ -77,6 +95,82 @@ test("cybersec bootstrap rejects unsafe safe-fact leakage", () => {
       },
     }],
   }), /unsafe key payload/);
+});
+
+test("cybersec adversarial fixture keeps hostile route evidence as recommendation-only posture", () => {
+  const now = 1_700_000_000;
+  const fixture = cybersecBootstrapFixture(now);
+  const report = buildCybersecProcessorRun({
+    ...fixture,
+    now: now + 100,
+    observedEvents: [
+      ...fixture.observedEvents,
+      {
+        eventRef: "event:route:hostile-member:1",
+        eventClass: "runtime.route.observation",
+        severity: "critical",
+        observedAt: now + 99,
+        safeFacts: {
+          posture: "routeMemberMismatch",
+          outcome: "suspiciousMember",
+          subjectKind: "route",
+        },
+      },
+    ],
+  });
+
+  assert.equal(report.state, "alerted");
+  assert.equal(report.findingRecords[0].severity, "critical");
+  assert.equal(report.findingRecords[0].observedEventRefs.includes("event:route:hostile-member:1"), true);
+  assert.equal(report.evidenceHoldRecords[0].eventRefs.includes("event:route:hostile-member:1"), true);
+  assert.deepEqual(report.evidenceHoldRecords[0].retentionDemandRefs, [
+    "retention:cybersec-hold:logging.default",
+    "retention:cybersec:logging.default",
+  ]);
+  assert.equal(report.mitigationRecommendationRecords[0].state, "recommended");
+  assert.equal(report.mitigationRecommendationRecords[0].safeFacts.recommendationOnly, true);
+  assert.equal(report.mitigationRecommendationRecords[0].safeFacts.enforcementOwner, "consumer");
+  assert.equal(JSON.stringify(report).includes("plaintext"), false);
+});
+
+test("cybersec adversarial fixture blocks missing encrypted-detail authority and custody", () => {
+  const now = 1_700_000_000;
+  const fixture = cybersecBootstrapFixture(now);
+  const report = buildCybersecProcessorRun({
+    ...fixture,
+    now: now + 100,
+    seed: {
+      ...fixture.seed,
+      accessGroupRefs: [],
+      detailRefs: [],
+      storageRefs: [],
+    },
+  });
+
+  assert.equal(report.state, "blocked");
+  assert.deepEqual(report.blockedReasons, ["missingAccessGroup", "missingDetailRef", "missingStorageRef"]);
+  assert.equal(report.accessPosture.state, "blocked");
+  assert.equal(report.eventFabricReport.state, "blocked");
+  assert.equal(report.findingRecords[0].state, "blocked");
+  assert.equal(report.evidenceHoldRecords[0].state, "blocked");
+  assert.equal(report.mitigationRecommendationRecords[0].state, "blocked");
+});
+
+test("cybersec adversarial fixture rejects nested plaintext safe-fact fields", () => {
+  const fixture = cybersecBootstrapFixture();
+  assert.throws(() => buildCybersecProcessorRun({
+    ...fixture,
+    observedEvents: [{
+      eventRef: "event:unsafe:nested",
+      eventClass: "runtime.diagnostic",
+      severity: "error",
+      safeFacts: {
+        nested: {
+          plaintext: "must-not-copy",
+        },
+      },
+    }],
+  }), /unsafe key nested\.plaintext/);
 });
 
 test("cybersec bootstrap blocks expired seed posture", () => {
