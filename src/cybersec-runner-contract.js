@@ -173,20 +173,10 @@ function cybersecAlertEventActionable(event) {
 }
 
 export function deriveCybersecReductionProfiles(observedEvents = []) {
-  const entries = CYBERSEC_REDUCTION_PROFILES.map((profile) => {
-    const eventRefs = unique(observedEvents
-      .filter((event) => profile.matches(event))
-      .map((event) => event.eventRef));
-    if (eventRefs.length === 0) return null;
-    return {
-      profileRef: profile.profileRef,
-      ruleRef: profile.ruleRef,
-      findingKind: profile.findingKind,
-      findingSlug: profile.findingSlug,
-      actionKind: profile.actionKind,
-      eventRefs,
-    };
-  }).filter(Boolean);
+  return classifyCybersecObservedEvents(observedEvents).reductionProfilePosture;
+}
+
+function buildCybersecReductionProfilePosture(entries) {
   const posture = {
     kind: "cybersec.reduction.profile.posture",
     state: entries.length ? "active" : "clear",
@@ -209,6 +199,44 @@ export function deriveCybersecReductionProfiles(observedEvents = []) {
   };
   rejectUnsafeSafeFacts(posture, "cybersec reduction profile posture");
   return Object.freeze(posture);
+}
+
+function classifyCybersecObservedEvents(observedEvents = []) {
+  const profileBuckets = CYBERSEC_REDUCTION_PROFILES.map((profile) => ({
+    profile,
+    eventRefs: [],
+  }));
+  const alertEvents = [];
+  const alertedEventRefs = new Set();
+  for (const event of asArray(observedEvents)) {
+    let matchedProfile = false;
+    for (const bucket of profileBuckets) {
+      if (!bucket.profile.matches(event)) continue;
+      bucket.eventRefs.push(event.eventRef);
+      matchedProfile = true;
+    }
+    if ((matchedProfile || cybersecAlertEventActionable(event)) && !alertedEventRefs.has(event.eventRef)) {
+      alertEvents.push(event);
+      alertedEventRefs.add(event.eventRef);
+    }
+  }
+  const entries = [];
+  for (const bucket of profileBuckets) {
+    const eventRefs = unique(bucket.eventRefs);
+    if (eventRefs.length === 0) continue;
+    entries.push({
+      profileRef: bucket.profile.profileRef,
+      ruleRef: bucket.profile.ruleRef,
+      findingKind: bucket.profile.findingKind,
+      findingSlug: bucket.profile.findingSlug,
+      actionKind: bucket.profile.actionKind,
+      eventRefs,
+    });
+  }
+  return Object.freeze({
+    reductionProfilePosture: buildCybersecReductionProfilePosture(entries),
+    alertEvents: Object.freeze(alertEvents),
+  });
 }
 
 function summarizeSeverity(events) {
@@ -697,11 +725,9 @@ export function buildCybersecProcessorRun(input = {}) {
     const normalized = normalizeObservedEvent(event, index);
     observedEvents.push(normalized);
   });
-  const reductionProfilePosture = deriveCybersecReductionProfiles(observedEvents);
-  const profiledEventRefs = stringSet(reductionProfilePosture.matchedEventRefs);
-  const alertEvents = observedEvents.filter((event) => (
-    cybersecAlertEventActionable(event) || profiledEventRefs.has(event.eventRef)
-  ));
+  const eventClassification = classifyCybersecObservedEvents(observedEvents);
+  const reductionProfilePosture = eventClassification.reductionProfilePosture;
+  const alertEvents = eventClassification.alertEvents;
   const blockedReasons = [];
 
   if (seed.state !== "ready") blockedReasons.push(`seed:${seed.state}`);
