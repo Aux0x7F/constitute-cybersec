@@ -201,6 +201,63 @@ test("cybersec reduction profiles classify hardening and exposure events without
   assert.equal(JSON.stringify(report).includes("plaintext"), false);
 });
 
+test("cybersec adversarial fixture classifies blocked firewall exception as network exposure evidence", () => {
+  const now = 1_700_000_000;
+  const fixture = cybersecBootstrapFixture(now);
+  const report = buildCybersecProcessorRun({
+    ...fixture,
+    now: now + 100,
+    observedEvents: [{
+      eventRef: "event:firewall:exception:blocked",
+      eventClass: LOGGING.EVIDENCE_PROFILE_EVENT_CLASS.NETWORK_EXPOSURE,
+      severity: "warn",
+      observedAt: now + 98,
+      safeFacts: {
+        posture: "firewallExceptionBlocked",
+        state: "blocked",
+        subjectKind: "firewall",
+      },
+    }],
+  });
+
+  assert.equal(report.state, "alerted");
+  assert.deepEqual(report.reductionProfilePosture.profileRefs, ["cybersec:profile:network-exposure"]);
+  assert.deepEqual(report.reductionProfilePosture.actionKinds, ["degrade"]);
+  assert.equal(report.findingRecords[0].findingKind, "networkExposureDrift");
+  assert.equal(report.findingRecords[0].observedEventRefs.includes("event:firewall:exception:blocked"), true);
+  assert.equal(report.mitigationRecommendationRecords[0].safeFacts.recommendationOnly, true);
+  assert.equal(report.mitigationRecommendationRecords[0].safeFacts.enforcementOwner, "consumer");
+  assert.equal(JSON.stringify(report).includes("plaintext"), false);
+});
+
+test("cybersec adversarial fixture treats missing auth audit input as host security evidence", () => {
+  const now = 1_700_000_000;
+  const fixture = cybersecBootstrapFixture(now);
+  const report = buildCybersecProcessorRun({
+    ...fixture,
+    now: now + 100,
+    observedEvents: [{
+      eventRef: "event:host:audit:missing",
+      eventClass: LOGGING.EVIDENCE_PROFILE_EVENT_CLASS.HOST_SECURITY,
+      severity: "warn",
+      observedAt: now + 98,
+      safeFacts: {
+        posture: "missingAuthAuditInput",
+        state: "missing",
+        subjectKind: "host",
+      },
+    }],
+  });
+
+  assert.equal(report.state, "alerted");
+  assert.deepEqual(report.reductionProfilePosture.profileRefs, ["cybersec:profile:host-security"]);
+  assert.deepEqual(report.reductionProfilePosture.actionKinds, ["notify"]);
+  assert.equal(report.findingRecords[0].findingKind, "hostSecuritySignal");
+  assert.equal(report.evidenceHoldRecords[0].eventRefs.includes("event:host:audit:missing"), true);
+  assert.equal(report.mitigationRecommendationRecords[0].safeFacts.recommendationOnly, true);
+  assert.equal(JSON.stringify(report).includes("plaintext"), false);
+});
+
 test("cybersec reduction profile derivation is safe-fact bounded", () => {
   const posture = deriveCybersecReductionProfiles([{
     eventRef: "event:host:security:1",
