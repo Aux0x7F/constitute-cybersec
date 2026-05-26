@@ -62,6 +62,10 @@ const CYBERSEC_MAIN_HTML = `
           <div class="cuPanelHeader"><div><h2 class="cuPanelTitle">Evidence Hold</h2></div></div>
           <div id="evidenceRows" class="cybersecRows"></div>
         </section>
+        <section class="cuPanel">
+          <div class="cuPanelHeader"><div><h2 class="cuPanelTitle">Reduction</h2></div></div>
+          <div id="reductionRows" class="cybersecRows"></div>
+        </section>
       </div>
       <section class="cuPanel cybersecPanel">
         <div class="cuPanelHeader"><div><h2 class="cuPanelTitle">Materialization</h2></div></div>
@@ -185,6 +189,7 @@ function renderStaticPosture() {
   rowList("accessRows", postureRows(cybersecProductReadModel, "access"));
   rowList("alertRows", postureRows(cybersecProductReadModel, "alert"));
   rowList("evidenceRows", postureRows(cybersecProductReadModel, "evidence"));
+  rowList("reductionRows", postureRows(cybersecProductReadModel, "reduction"));
   rowList("materializationRows", postureRows(cybersecProductReadModel, "materialization"));
   rowList("instanceRows", [
     ["Contract", cybersecSurfaceSelectionReadModel.contractId],

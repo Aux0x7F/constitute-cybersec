@@ -20,6 +20,72 @@ import {
 export const CYBERSEC_RUN_KIND = "cybersec.processor.run.report";
 
 const ALERT_SEVERITIES = new Set(["critical", "error", "warn"]);
+export const CYBERSEC_REDUCTION_PROFILES = Object.freeze([
+  {
+    profileRef: "cybersec:profile:media-path",
+    ruleRef: "cybersec:rule:media-path-actionability",
+    findingKind: "mediaPathAnomaly",
+    findingSlug: "media-path",
+    actionKind: "requestEvidence",
+    matches: (event) => eventText(event).includes("media")
+      || eventText(event).includes("render")
+      || eventText(event).includes("webrtc"),
+  },
+  {
+    profileRef: "cybersec:profile:route-member",
+    ruleRef: "cybersec:rule:route-member-integrity",
+    findingKind: "routeMemberAnomaly",
+    findingSlug: "route-member",
+    actionKind: "requestEvidence",
+    matches: (event) => eventText(event).includes("route")
+      || eventText(event).includes("membermismatch")
+      || eventText(event).includes("suspiciousmember"),
+  },
+  {
+    profileRef: "cybersec:profile:service-hardening",
+    ruleRef: "cybersec:rule:service-hardening-posture",
+    findingKind: "serviceHardeningDrift",
+    findingSlug: "service-hardening",
+    actionKind: "retainEvidence",
+    matches: (event) => event.eventClass === LOGGING.EVIDENCE_PROFILE_EVENT_CLASS.SERVICE_HARDENING
+      || eventText(event).includes("hardening"),
+  },
+  {
+    profileRef: "cybersec:profile:network-exposure",
+    ruleRef: "cybersec:rule:network-exposure-posture",
+    findingKind: "networkExposureDrift",
+    findingSlug: "network-exposure",
+    actionKind: "degrade",
+    matches: (event) => event.eventClass === LOGGING.EVIDENCE_PROFILE_EVENT_CLASS.NETWORK_EXPOSURE
+      || eventText(event).includes("exposure")
+      || eventText(event).includes("firewall"),
+  },
+  {
+    profileRef: "cybersec:profile:evidence-custody",
+    ruleRef: "cybersec:rule:evidence-custody-request",
+    findingKind: "evidenceCustodyGap",
+    findingSlug: "evidence-custody",
+    actionKind: "requestEvidence",
+    matches: (event) => event.eventClass === LOGGING.EVIDENCE_PROFILE_EVENT_CLASS.EVIDENCE_REQUEST
+      || (
+        event.eventClass === LOGGING.EVIDENCE_PROFILE_EVENT_CLASS.STORAGE_ACCESS
+        && eventText(event).includes("custody")
+      )
+      || eventText(event).includes("missingevidence")
+      || eventText(event).includes("evidencerequest")
+      || eventText(event).includes("evidencecustody")
+      || eventText(event).includes("storagefulfillment"),
+  },
+  {
+    profileRef: "cybersec:profile:host-security",
+    ruleRef: "cybersec:rule:host-security-signal",
+    findingKind: "hostSecuritySignal",
+    findingSlug: "host-security",
+    actionKind: "notify",
+    matches: (event) => event.eventClass === LOGGING.EVIDENCE_PROFILE_EVENT_CLASS.HOST_SECURITY
+      || eventText(event).includes("hostsecurity"),
+  },
+]);
 const TERMINAL_BLOCKED_STATES = new Set([
   RUNNER.OPERATION_STATE.BLOCKED,
   RUNNER.OPERATION_STATE.FAILED,
@@ -51,6 +117,13 @@ function unique(values) {
   return [...new Set(values.map((value) => String(value || "").trim()).filter(Boolean))];
 }
 
+function camelToKebab(value) {
+  return String(value || "")
+    .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
+    .replace(/_/g, "-")
+    .toLowerCase();
+}
+
 function rejectUnsafeSafeFacts(value, context, path = []) {
   if (value === null || value === undefined) return;
   if (Array.isArray(value)) {
@@ -80,9 +153,90 @@ function normalizeObservedEvent(event, index) {
   return normalized;
 }
 
+function eventText(event) {
+  return [
+    event.eventClass,
+    event.safeFacts?.posture,
+    event.safeFacts?.outcome,
+    event.safeFacts?.state,
+    event.safeFacts?.subjectKind,
+    event.safeFacts?.category,
+    event.safeFacts?.custody,
+    event.safeFacts?.detailCustody,
+    event.safeFacts?.accessAuthority,
+  ].map((value) => String(value || "").toLowerCase()).join(" ");
+}
+
 function cybersecAlertEventActionable(event) {
   return ALERT_SEVERITIES.has(event.severity)
     || event.eventClass.toLowerCase().includes("cybersec");
+}
+
+export function deriveCybersecReductionProfiles(observedEvents = []) {
+  return classifyCybersecObservedEvents(observedEvents).reductionProfilePosture;
+}
+
+function buildCybersecReductionProfilePosture(entries) {
+  const posture = {
+    kind: "cybersec.reduction.profile.posture",
+    state: entries.length ? "active" : "clear",
+    profileRefs: unique(entries.map((entry) => entry.profileRef)),
+    ruleRefs: unique(entries.map((entry) => entry.ruleRef)),
+    findingKinds: unique(entries.map((entry) => entry.findingKind)),
+    actionKinds: unique(entries.map((entry) => entry.actionKind)),
+    matchedEventRefs: unique(entries.flatMap((entry) => entry.eventRefs)),
+    profileEvents: entries.map((entry) => ({
+      profileRef: entry.profileRef,
+      ruleRef: entry.ruleRef,
+      findingKind: entry.findingKind,
+      eventRefs: entry.eventRefs,
+    })),
+    primaryProfileRef: entries[0]?.profileRef || "",
+    primaryRuleRef: entries[0]?.ruleRef || "",
+    primaryFindingKind: entries[0]?.findingKind || "eventFabricAnomaly",
+    primaryFindingSlug: entries[0]?.findingSlug || "event-fabric",
+    primaryActionKind: entries[0]?.actionKind || "requestEvidence",
+  };
+  rejectUnsafeSafeFacts(posture, "cybersec reduction profile posture");
+  return Object.freeze(posture);
+}
+
+function classifyCybersecObservedEvents(observedEvents = []) {
+  const profileBuckets = CYBERSEC_REDUCTION_PROFILES.map((profile) => ({
+    profile,
+    eventRefs: [],
+  }));
+  const alertEvents = [];
+  const alertedEventRefs = new Set();
+  for (const event of asArray(observedEvents)) {
+    let matchedProfile = false;
+    for (const bucket of profileBuckets) {
+      if (!bucket.profile.matches(event)) continue;
+      bucket.eventRefs.push(event.eventRef);
+      matchedProfile = true;
+    }
+    if ((matchedProfile || cybersecAlertEventActionable(event)) && !alertedEventRefs.has(event.eventRef)) {
+      alertEvents.push(event);
+      alertedEventRefs.add(event.eventRef);
+    }
+  }
+  const entries = [];
+  for (const bucket of profileBuckets) {
+    const eventRefs = unique(bucket.eventRefs);
+    if (eventRefs.length === 0) continue;
+    entries.push({
+      profileRef: bucket.profile.profileRef,
+      ruleRef: bucket.profile.ruleRef,
+      findingKind: bucket.profile.findingKind,
+      findingSlug: bucket.profile.findingSlug,
+      actionKind: bucket.profile.actionKind,
+      eventRefs,
+    });
+  }
+  return Object.freeze({
+    reductionProfilePosture: buildCybersecReductionProfilePosture(entries),
+    alertEvents: Object.freeze(alertEvents),
+  });
 }
 
 function summarizeSeverity(events) {
@@ -124,6 +278,10 @@ export function cybersecEventFabricViewFixture(now = nowSeconds()) {
       LOGGING.EVIDENCE_PROFILE_EVENT_CLASS.SERVICE_EVENT,
       LOGGING.EVIDENCE_PROFILE_EVENT_CLASS.STORAGE_ACCESS,
       LOGGING.EVIDENCE_PROFILE_EVENT_CLASS.MEDIA_PATH,
+      LOGGING.EVIDENCE_PROFILE_EVENT_CLASS.HOST_SECURITY,
+      LOGGING.EVIDENCE_PROFILE_EVENT_CLASS.SERVICE_HARDENING,
+      LOGGING.EVIDENCE_PROFILE_EVENT_CLASS.NETWORK_EXPOSURE,
+      LOGGING.EVIDENCE_PROFILE_EVENT_CLASS.EVIDENCE_REQUEST,
     ],
     accessGroupRefs: ["access-group:logging.cybersec.default"],
     processorRoleRefs: ["role:logging.processor", "role:cybersec.processor"],
@@ -563,12 +721,13 @@ export function buildCybersecProcessorRun(input = {}) {
   const runnerOperation = assertRunnerOperation(input.runnerOperation);
   const observedAt = Number(input.now || 0) || nowSeconds();
   const observedEvents = [];
-  const alertEvents = [];
   asArray(input.observedEvents).forEach((event, index) => {
     const normalized = normalizeObservedEvent(event, index);
     observedEvents.push(normalized);
-    if (cybersecAlertEventActionable(normalized)) alertEvents.push(normalized);
   });
+  const eventClassification = classifyCybersecObservedEvents(observedEvents);
+  const reductionProfilePosture = eventClassification.reductionProfilePosture;
+  const alertEvents = eventClassification.alertEvents;
   const blockedReasons = [];
 
   if (seed.state !== "ready") blockedReasons.push(`seed:${seed.state}`);
@@ -604,6 +763,9 @@ export function buildCybersecProcessorRun(input = {}) {
     accessGroupCount: asArray(seed.accessGroupRefs).length,
     storageRefCount: asArray(seed.storageRefs).length,
     detailRefCount: asArray(seed.detailRefs).length,
+    reductionProfileCount: reductionProfilePosture.profileRefs.length,
+    reductionProfileRefs: reductionProfilePosture.profileRefs,
+    reductionRuleRefs: reductionProfilePosture.ruleRefs,
     loggingBoundary: seed.semanticBoundaries?.logging || "",
     storageBoundary: seed.semanticBoundaries?.storage || "",
     eventDomainBoundary: seed.semanticBoundaries?.eventDomain || "",
@@ -627,12 +789,12 @@ export function buildCybersecProcessorRun(input = {}) {
     observedEventRefs: unique(observedEvents.map((event) => event.eventRef)),
     heldEventRefs,
     storageRefs: unique(seed.storageRefs || []),
-    findingRefs: alertEvents.length ? [`cybersec:finding:${seed.seedId}:media-path`] : [],
+    findingRefs: alertEvents.length ? [`cybersec:finding:${seed.seedId}:${reductionProfilePosture.primaryFindingSlug}`] : [],
     alertRefs: unique(alertEvents.map((event) => `cybersec:alert:${event.eventRef}`)),
     evidenceHoldRefs: heldEventRefs.length ? unique(seed.evidenceHoldRefs || []) : [],
     retentionDemandRefs: heldEventRefs.length ? unique(seed.retentionHoldRefs || []) : [],
     mitigationRecommendationRefs: alertEvents.length
-      ? [`cybersec:recommendation:${seed.seedId}:request-evidence`]
+      ? [`cybersec:recommendation:${seed.seedId}:${camelToKebab(reductionProfilePosture.primaryActionKind)}`]
       : [],
     safeFacts,
     evidenceRefs,
@@ -647,7 +809,7 @@ export function buildCybersecProcessorRun(input = {}) {
     processorRef: seed.processorRef,
     processorRoleRef: seed.processorRoleRef,
     subjectRef: seed.fabricRef,
-    findingKind: "eventFabricAnomaly",
+    findingKind: reductionProfilePosture.primaryFindingKind,
     severity: alertEvents.some((event) => event.severity === "critical") ? "critical" : "medium",
     state: blockedReasons.length ? "blocked" : "open",
     confidenceScore: alertEvents.length ? 0.72 : 0,
@@ -659,9 +821,11 @@ export function buildCybersecProcessorRun(input = {}) {
     retentionDemandRefs: eventFabricReport.retentionDemandRefs,
     mitigationRecommendationRefs: eventFabricReport.mitigationRecommendationRefs,
     safeFacts: {
-      findingKind: "eventFabricAnomaly",
+      findingKind: reductionProfilePosture.primaryFindingKind,
       severity: alertEvents.some((event) => event.severity === "critical") ? "critical" : "medium",
       alertEventCount: alertEvents.length,
+      reductionProfileRefs: reductionProfilePosture.profileRefs,
+      reductionRuleRefs: reductionProfilePosture.ruleRefs,
     },
     blockedReasons,
     observedAt,
@@ -695,7 +859,7 @@ export function buildCybersecProcessorRun(input = {}) {
     findingRef: eventFabricReport.findingRefs[0] || `cybersec:finding:${seed.seedId}:none`,
     processorReportRef: eventFabricReport.reportId,
     recommenderRef: seed.processorRef,
-    actionKind: "requestEvidence",
+    actionKind: reductionProfilePosture.primaryActionKind,
     targetRef: seed.fabricRef,
     state: blockedReasons.length ? "blocked" : "recommended",
     authorityRefs: ["authority:cybersec.bootstrap"],
@@ -704,6 +868,8 @@ export function buildCybersecProcessorRun(input = {}) {
     safeFacts: {
       recommendationOnly: true,
       enforcementOwner: "consumer",
+      reductionProfileRefs: reductionProfilePosture.profileRefs,
+      reductionRuleRefs: reductionProfilePosture.ruleRefs,
     },
     blockedReasons,
     issuedAt: observedAt,
@@ -744,6 +910,7 @@ export function buildCybersecProcessorRun(input = {}) {
       processorContractRefs: unique(seed.processorContractRefs || []),
       storageRefs: unique(seed.storageRefs || []),
     },
+    reductionProfilePosture,
     semanticBoundaries: seed.semanticBoundaries,
     eventFabricReport,
     findingRecords,
@@ -764,9 +931,14 @@ export function assertCybersecProcessorRunReport(record) {
     if (!String(record[field] || "").trim()) throw new Error(`cybersec processor run report missing ${field}`);
   }
   if (!["clear", "alerted", "blocked", "degraded"].includes(record.state)) throw new Error("invalid cybersec processor run report state");
-  for (const field of ["alertPosture", "evidenceHoldPosture", "accessPosture", "materializationPosture", "semanticBoundaries", "safeFacts"]) {
+  for (const field of ["alertPosture", "evidenceHoldPosture", "accessPosture", "materializationPosture", "reductionProfilePosture", "semanticBoundaries", "safeFacts"]) {
     if (!record[field] || typeof record[field] !== "object" || Array.isArray(record[field])) {
       throw new Error(`cybersec processor run report ${field} must be an object`);
+    }
+  }
+  for (const field of ["profileRefs", "ruleRefs", "findingKinds", "actionKinds", "matchedEventRefs"]) {
+    if (!Array.isArray(record.reductionProfilePosture[field])) {
+      throw new Error(`cybersec reduction profile posture ${field} must be an array`);
     }
   }
   for (const field of ["evidenceRefs", "blockedReasons"]) {

@@ -9,9 +9,9 @@
     "test": "node --test tests/*.test.js"
   },
   "dependencies": {
-    "constitute-protocol": "github:Aux0x7F/constitute-protocol#main",
-    "constitute-runner": "github:Aux0x7F/constitute-runner#main",
-    "constitute-ui": "github:Aux0x7F/constitute-ui#main"
+    "constitute-protocol": "github:Aux0x7F/constitute-protocol#0x/fabric-transition/topology-execution",
+    "constitute-runner": "github:Aux0x7F/constitute-runner#0x/fabric-transition/topology-execution",
+    "constitute-ui": "github:Aux0x7F/constitute-ui#0x/fabric-transition/topology-execution"
   },
   "devDependencies": {
     "vite": "^7.1.7"
